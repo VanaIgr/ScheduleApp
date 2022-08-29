@@ -8,6 +8,7 @@
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
     <color name="dark_gray">#FF4a4a4a</color>
+    <color name="light_gray">#606060</color>
     <color name="prev_el_overlay">#90dfdfdf</color>
     <color name="next_el_overlay">#80eeeeee</color>
     <color name="cur_el">#FFFFFF</color>

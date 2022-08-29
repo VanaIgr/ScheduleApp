@@ -8,17 +8,15 @@ import android.net.Uri
 import android.os.Bundle
 import android.util.Log
 import android.util.TypedValue
-import android.view.LayoutInflater
-import android.view.Menu
-import android.view.View
-import android.view.ViewGroup
+import android.view.*
 import android.widget.*
+import androidx.gridlayout.widget.GridLayout
 import androidx.appcompat.app.AppCompatActivity
 import androidx.cardview.widget.CardView
 import androidx.core.view.MenuCompat
+import androidx.core.view.setPadding
+import com.google.android.flexbox.FlexboxLayout
 import java.io.BufferedReader
-import java.io.File
-import java.io.FileOutputStream
 import java.io.InputStreamReader
 import java.util.*
 import java.util.concurrent.TimeUnit
@@ -36,17 +34,6 @@ class MainActivity : AppCompatActivity() {
 
         val sharedPref = getSharedPreferences("info", Context.MODE_PRIVATE)
         group = sharedPref.getBoolean("group", group)
-
-        val scheduleString = try {
-            readSchedule()
-        }
-        catch(e: Throwable) {
-            val toast = Toast.makeText(applicationContext, "Error opening schedule file: $e",
-                                       Toast.LENGTH_LONG
-            )
-            toast.show()
-            "0,  0,0,0,0,0,0,0,  01,09,2022, 1,0,"
-        }
 
         findViewById<Button>(R.id.accept).setOnClickListener {
             val source = findViewById<TextView>(R.id.getText).text.toString()
@@ -96,9 +83,165 @@ class MainActivity : AppCompatActivity() {
             else -> false
         } }
 
+        val lessonsView = findViewById<ViewGroup>(R.id.lessonsView)
+        val calendarView = findViewById<ViewGroup>(R.id.calendarView)
+
+        run {
+            val toLessonsView = findViewById<ImageView>(R.id.selectDayView)
+            val toCalendarView = findViewById<ImageView>(R.id.selectWeekView)
+
+            toLessonsView.setOnClickListener {
+                toLessonsView.setColorFilter(
+                    resources.getColor(R.color.purple_500),
+                    android.graphics.PorterDuff.Mode.SRC_IN
+                )
+                toCalendarView.clearColorFilter()
+                lessonsView.visibility = View.VISIBLE
+                calendarView.visibility = View.GONE
+            }
+            toCalendarView.setOnClickListener {
+                toCalendarView.setColorFilter(
+                    resources.getColor(R.color.purple_500),
+                    android.graphics.PorterDuff.Mode.SRC_IN
+                )
+                toLessonsView.clearColorFilter()
+                calendarView.visibility = View.VISIBLE
+                lessonsView.visibility = View.GONE
+            }
+
+            toLessonsView.callOnClick()
+        }
+
+        val scheduleString = try {
+            readSchedule()
+        }
+        catch (e: Throwable) {
+            val toast = Toast.makeText(
+                applicationContext, "Error opening schedule file: $e",
+                Toast.LENGTH_LONG
+            )
+            toast.show()
+            "0,  0,0,0,0,0,0,0,  01,09,2022, 1,0,"
+        }
+
         schedule = parseSchedule(scheduleString)
 
         updateScheduleDisplayTimed()
+
+        updateScheduleWeekDisplay(calendarView)
+    }
+
+    private fun updateScheduleWeekDisplay(weekView: ViewGroup) {
+        val week = weekView.findViewById<LinearLayout>(R.id.week)
+
+        fun TableRow.addElement(view: View, params: TableRow.LayoutParams) {
+            this.addView(
+                view.apply {
+                    setPadding(dipToPx(5.0f).toInt())
+                    setBackgroundColor(resources.getColor(R.color.white))
+                },
+                params.apply {
+                    bottomMargin = dipToPx(2.0f).toInt()
+                    marginEnd = dipToPx(2.0f).toInt()
+                }
+            )
+        }
+
+        val dayNames = arrayOf("Понедельник", "Вторник", "Среда", "Четверг", "Пятница", "Суббота", "Воскресенье")
+
+        for(dayIndex in 0 until 7) {
+            val day = TableLayout(this)
+            day.setBackgroundColor(resources.getColor(R.color.light_gray))
+            day.setPaddingRelative(dipToPx(2f).toInt(), dipToPx(2f).toInt(), 0, 0)
+
+            week.addView(
+                day,
+                LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT
+                ).apply {
+                    width = ViewGroup.LayoutParams.MATCH_PARENT
+                    width = ViewGroup.LayoutParams.WRAP_CONTENT
+                    topMargin = dipToPx(10.0f).toInt()
+                }
+            )
+
+            day.addView(TableRow(this).apply {
+                addElement(
+                    TextView(this@MainActivity).apply {
+                        text = dayNames[dayIndex]
+                        textAlignment = TextView.TEXT_ALIGNMENT_CENTER
+                        setTextColor(resources.getColor(R.color.black))
+                        textSize = spToPx(14.0f)
+                    },
+                    TableRow.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+                        span = 3
+                        weight = 1.0f
+                    }
+                )
+            })
+
+            val curDay = schedule.week[dayIndex]
+
+            for((i, curTime) in curDay.time.withIndex()) {
+                fun lessonAt(group: Boolean, week: Boolean) = curDay.getForGroupAndWeek(group , week).let {
+                    if(i in it.indices) it[i] else 0
+                }
+
+                val row = TableRow(this)
+                day.addView(row)
+
+                val time = curDay.time[i]
+
+
+                val splitGroup_ = lessonAt(group = false, false) == lessonAt(group = true, false)
+                val splitWeek_ = lessonAt(false, week = false) == lessonAt(false, week = true)
+
+                val splitGroup = splitGroup_ || (splitGroup_ && splitWeek_)
+                val splitWeek = splitWeek_ || (splitGroup_ && splitWeek_)
+
+                row.addElement(
+                    FrameLayout(this).apply {
+                        addView(TextView(this@MainActivity).apply {
+                            text = minuteOfDayToString(time.first) + "\n-\n" + minuteOfDayToString(time.last)
+                            textAlignment = TextView.TEXT_ALIGNMENT_CENTER
+                            setTextColor(resources.getColor(R.color.black))
+                            textSize = spToPx(10.0f)
+                        }, ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.MATCH_PARENT)
+                    },
+                    TableRow.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.MATCH_PARENT)
+                )
+
+                if(lessonIndex == 0) {
+                    row.addView(View(this))
+                }
+                else {
+                    val lesson = curDay.lessonsUsed[lessonIndex - 1]
+
+                    row.addElement(
+                        FlexboxLayout(this).apply {
+                            fun addText(text: String) {
+                                addView(TextView(this@MainActivity).apply {
+                                    this.text = text
+                                    setTextColor(resources.getColor(R.color.black))
+                                    textAlignment = TextView.TEXT_ALIGNMENT_CENTER
+                                    textSize = spToPx(12.0f)
+                                }, ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+                            }
+                            flexWrap = FlexboxLayout.FLEX_WRAP_WRAP
+                            justifyContent = FlexboxLayout.JUSTIFY_CONTENT_CENTER
+                            addText(lesson.name)
+                            addText(" " + lesson.type)
+                            addText(" " + lesson.loc)
+                            addText(" " + lesson.extra)
+                        },
+                        TableRow.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT).apply {
+                            weight = 1.0f
+                        }
+                    )
+                }
+            }
+        }
     }
 
     private fun updateScheduleDisplayTimed() {
@@ -124,23 +267,33 @@ class MainActivity : AppCompatActivity() {
         }, nextDate)
     }
 
+    private fun dipToPx(dp: Float): Float = TypedValue.applyDimension(
+        TypedValue.COMPLEX_UNIT_DIP, dp, resources.displayMetrics
+    )
+
+    private fun spToPx(sp: Float): Float = TypedValue.applyDimension(
+        TypedValue.COMPLEX_UNIT_SP, sp, resources.displayMetrics
+    )
+
     private fun updateScheduleDisplay(now: Calendar) {
         val elements = findViewById<ViewGroup>(R.id.elements).also { it.removeAllViews() }
         val inflater = LayoutInflater.from(this)
 
+        fun View.setElementElevation(elevation: Float) {
+            this as CardView
+            cardElevation = dipToPx(elevation)
+            maxCardElevation = dipToPx(elevation)
+        }
         val addEl = fun(id: Int): View {
             val el_l = inflater.inflate(R.layout.element_l, elements, false) as ViewGroup
+            el_l.setElementElevation(3.0f)
             val container = el_l.findViewById<ViewGroup>(R.id.container)
             elements.addView(el_l)
             val el = inflater.inflate(id, container, false)
             container.addView(el)
             return el_l
         }
-        fun View.setElementElevation(elevation: Float) {
-            (this as CardView).cardElevation = TypedValue.applyDimension(
-                TypedValue.COMPLEX_UNIT_DIP, elevation, resources.displayMetrics
-            )
-        }
+
         var scrollTo: View? = null
         var endOfDay = false
 
@@ -305,8 +458,9 @@ class MainActivity : AppCompatActivity() {
             val sv = scrollTo
             val scrollView = findViewById<ScrollView>(R.id.elementsSV)
             scrollView.post {
-                if(sv != null) scrollView.scrollTo(0,
-                                                   (sv.top + sv.bottom) / 2 - scrollView.height / 2
+                if(sv != null) scrollView.scrollTo(
+                    0,
+                    (sv.top + sv.bottom) / 2 - scrollView.height / 2
                 )
                 if(endOfDay) scrollView.fullScroll(scrollView.bottom)
                 else scrollView.fullScroll(0)
@@ -354,8 +508,9 @@ class MainActivity : AppCompatActivity() {
         element.extra
     )
 
-    private fun View.setElementText(time: String, type: String, loc: String, name: String,
-                                    extra: String
+    private fun View.setElementText(
+        time: String, type: String, loc: String, name: String,
+        extra: String
     ) {
         findViewById<TextView>(R.id.timeTV).text = time
         findViewById<TextView>(R.id.typeTV).text = type
@@ -420,7 +575,7 @@ class MainActivity : AppCompatActivity() {
                     schedule = parseSchedule(text)
                     writeSchedule(text)
                     updateScheduleDisplay(Calendar.getInstance())
-                } catch(e: Exception) {
+                } catch (e: Exception) {
                     val toast = Toast.makeText(
                         applicationContext,
                         "Error parsing schedule from file: $e",

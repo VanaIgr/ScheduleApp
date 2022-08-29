@@ -9,8 +9,6 @@
     android:foregroundTintMode="add"
     app:cardBackgroundColor="@color/white"
     app:cardCornerRadius="4dp"
-    app:cardElevation="3dp"
-    app:cardPreventCornerOverlap="true"
     app:cardUseCompatPadding="true">
 
     <FrameLayout
