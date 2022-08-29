@@ -3,9 +3,9 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
+    android:layout_marginStart="10dp"
     android:layout_marginTop="10dp"
-    android:layout_marginStart="20dp"
-    android:layout_marginEnd="20dp"
+    android:layout_marginEnd="10dp"
     android:foregroundTintMode="add"
     app:cardBackgroundColor="@color/white"
     app:cardCornerRadius="4dp"
@@ -17,8 +17,7 @@
         android:id="@+id/container"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:padding="@dimen/spacing2">
-    </FrameLayout>
+        android:padding="@dimen/spacing2"></FrameLayout>
 
     <FrameLayout
         android:id="@+id/foreground"

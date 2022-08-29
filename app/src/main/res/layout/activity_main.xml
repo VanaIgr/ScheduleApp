@@ -138,6 +138,7 @@
                 android:layout_marginStart="@dimen/spacing"
                 android:layout_weight="0"
                 android:adjustViewBounds="true"
+                android:clickable="true"
                 android:scaleType="center"
                 app:srcCompat="@drawable/ic_baseline_calendar_view_day_24" />
 
@@ -148,6 +149,7 @@
                 android:layout_marginStart="@dimen/spacing"
                 android:layout_weight="0"
                 android:adjustViewBounds="true"
+                android:clickable="true"
                 android:scaleType="center"
                 app:srcCompat="@drawable/ic_baseline_apps_24" />
 
@@ -165,6 +167,7 @@
                     android:layout_marginStart="@dimen/spacing"
                     android:layout_weight="0"
                     android:adjustViewBounds="true"
+                    android:clickable="true"
                     android:scaleType="center"
                     app:srcCompat="@drawable/ic_baseline_settings_24" />
             </FrameLayout>

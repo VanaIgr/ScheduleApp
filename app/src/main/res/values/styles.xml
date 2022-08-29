@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="PopupMenuListView" parent="@style/Widget.AppCompat.ListView.DropDown">
+        <item name="android:divider">#dddddd</item>
+        <item name="android:dividerHeight">1dp</item>
+    </style>
+</resources>

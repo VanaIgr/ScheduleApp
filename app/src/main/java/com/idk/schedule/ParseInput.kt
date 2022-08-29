@@ -1,8 +1,12 @@
 package com.idk.schedule
 
+import android.util.Log
 import java.lang.IllegalStateException
 import java.lang.IndexOutOfBoundsException
 import java.lang.RuntimeException
+import java.lang.StringBuilder
+import java.util.*
+import kotlin.collections.ArrayList
 
 fun Boolean.toInt(): Int = if(this) 1 else 0
 
@@ -11,33 +15,20 @@ fun minuteOfDayToString(mod: Int): String {
 }
 
 data class Lesson(
-    val startMinuteOfDay: Int,
-    val endMinuteOfDay: Int,
-
     val type: String,
     val loc: String,
     val name: String,
     val extra: String
-) {
-    init {
-        if(startMinuteOfDay in 0 until (24*60)
-           && endMinuteOfDay in 0 until (24*60));
-        else throw IllegalStateException(
-            "time is incorrect ${minuteOfDayToString(startMinuteOfDay)}, ${minuteOfDayToString(endMinuteOfDay)}"
-        )
-    }
-}
+)
 
 //(group << 1) | числитель/знаменатель
-data class LessonGroup(val lessons: Array<Lesson>) {
-    fun getForGroupAndWeek(group: Boolean, week: Boolean): Lesson {
-        return lessons[(group.toInt() shl 1) or week.toInt()]
+data class Day(val lessonsUsed: Array<Lesson>, val time: Array<IntRange>, val lessons: Array<IntArray>) {
+    fun getForGroupAndWeek(group: Boolean, week: Boolean): IntArray {
+        return lessons[(week.toInt() shl 1) or group.toInt()]
     }
 }
 
 data class Weeks(val day: Int, val month: Int, val year: Int, val weeks: BooleanArray)
-
-typealias Day = Array<LessonGroup>
 
 typealias Week = Array<Day>
 
@@ -66,90 +57,72 @@ internal fun StringView.parseRawString(): StringView {
     return StringView(source, lengthS.end+1, lengthS.end+1 + length)
 }
 internal fun StringView.parseLesson(): Pair<StringView, Lesson> {
-    val sHour = parseNextValue()
-    val sMinute = StringView(source, sHour.end+1, end).parseNextValue()
-    val eHour = StringView(source, sMinute.end+1, end).parseNextValue()
-    val eMinute = StringView(source, eHour.end+1, end).parseNextValue()
-
-    val type = StringView(source, eMinute.end+1, end).parseRawString()
+    val type = StringView(source, begin, end).parseRawString()
     val loc = StringView(source, type.end+1, end).parseRawString()
     val name = StringView(source, loc.end+1, end).parseRawString()
     val extra = StringView(source, name.end+1, end).parseRawString()
 
     return Pair(
-            StringView(source, begin, extra.end),
-            Lesson(
-            sHour.get().trim().toInt() * 60 + sMinute.get().trim().toInt(),
-            eHour.get().trim().toInt() * 60 + eMinute.get().trim().toInt(),
+        StringView(source, begin, extra.end),
+        Lesson(
             type.get(),
             loc.get(),
             name.get(),
             extra.get()
-                  )
-    );
-}
-internal fun StringView.parseLessonGroup(): Pair<StringView, LessonGroup> {
-    val groupsS = parseNextValue()
-    val groups = groupsS.get().trim() != "0"
-
-    val lessonsArray = arrayOfNulls<Lesson>(4)
-
-    var curBegin = groupsS.end
-
-    fun parseWeeks(group: Int) {
-        val weeksS = StringView(source, curBegin+1, end).parseNextValue()
-        curBegin = weeksS.end
-        val weeks = weeksS.get().trim() != "0"
-
-        if(weeks) {
-            val pair1 = StringView(source, curBegin+1, end).parseLesson()
-            curBegin = pair1.first.end
-
-            val pair2 = StringView(source, curBegin+1, end).parseLesson()
-            curBegin = pair2.first.end
-
-            lessonsArray[(group shl 1) or 0] = pair1.second
-            lessonsArray[(group shl 1) or 1] = pair2.second
-        }
-        else {
-            val pair = StringView(source, curBegin+1, end).parseLesson()
-            curBegin = pair.first.end
-
-            lessonsArray[(group shl 1) or 0] = pair.second
-            lessonsArray[(group shl 1) or 1] = pair.second
-        }
-    }
-
-    if(groups) {
-        parseWeeks(0)
-        parseWeeks(1)
-    }
-    else {
-        parseWeeks(0)
-
-        lessonsArray[(1 shl 1) or 0] = lessonsArray[(0 shl 1) or 0]
-        lessonsArray[(1 shl 1) or 1] = lessonsArray[(0 shl 1) or 1]
-    }
-
-    return Pair(
-        StringView(source, begin, curBegin),
-        LessonGroup(lessonsArray as Array<Lesson>)
+        )
     )
 }
 
 internal fun StringView.parseDay(): Pair<StringView, Day> {
-    val lessonsCountS = parseNextValue()
-    val lessonsCount = source.substring(lessonsCountS.run { IntRange(begin, end - 1) }).trim().toInt()
-
-    val lessons = ArrayList<LessonGroup>()
+    val lessonsCountS = StringView(source, begin, end).parseNextValue()
     var curBegin = lessonsCountS.end
-    for(i in 0 until lessonsCount) {
-        val pair = StringView(source, curBegin+1, end).parseLessonGroup()
+    val lessonsCount = lessonsCountS.get().trim().toInt()
+    if(lessonsCount == 0) return Pair(lessonsCountS, Day(emptyArray(), emptyArray(), Array(4){intArrayOf()}))
+    val lessonsUsed = Array(lessonsCount) {
+        val pair = StringView(source, curBegin+1, end).parseLesson()
         curBegin = pair.first.end
-        lessons.add(pair.second)
+        pair.second
     }
 
-    return Pair(StringView(source, begin, curBegin), lessons.toTypedArray())
+    val timeCountS = StringView(source, curBegin+1, end).parseNextValue()
+    val timeCount = timeCountS.get().trim().toInt()
+    curBegin = timeCountS.end
+    val time = Array(timeCount) {
+        val startHourS = StringView(source, curBegin+1, end).parseNextValue()
+        val startHour = startHourS.get().trim().toInt()
+        curBegin = startHourS.end
+
+        val startMinuteS = StringView(source, curBegin+1, end).parseNextValue()
+        val startMinute = startMinuteS.get().trim().toInt()
+        curBegin = startMinuteS.end
+
+        val endHourS = StringView(source, curBegin+1, end).parseNextValue()
+        val endHour = endHourS.get().trim().toInt()
+        curBegin = endHourS.end
+
+        val endMinuteS = StringView(source, curBegin+1, end).parseNextValue()
+        val endMinute = endMinuteS.get().trim().toInt()
+        curBegin = endMinuteS.end
+
+        IntRange(
+            startHour * 60 + startMinute,
+            endHour * 60 + endMinute,
+        )
+    }
+
+    val lessons = Array(4) {
+        IntArray(timeCount) {
+            val indexS = StringView(source, curBegin+1, end).parseNextValue()
+            val index = indexS.get().trim().toInt()
+            curBegin = indexS.end
+            index
+        }
+    }
+
+    return Pair(
+        StringView(source, begin, curBegin),
+        Day(lessonsUsed, time, lessons)
+    )
 }
 
 internal fun StringView.parseWeeks(): Pair<StringView, Weeks> {
@@ -174,7 +147,14 @@ data class Schedule(val weeksDescription: Weeks, val week: Week)
 fun parseSchedule(input: String): Schedule {
     val week = ArrayList<Day>()
 
+
     var begin = 0
+
+    val versionS = StringView(input, begin, input.length).parseNextValue()
+    begin = versionS.end + 1
+    val version = versionS.get().trim().toInt()
+    if(version != 0) throw RuntimeException("version $version is unknown")
+
     for (i in 0 until 7) {
         val pair = StringView(input, begin, input.length).parseDay()
         begin = pair.first.end + 1
