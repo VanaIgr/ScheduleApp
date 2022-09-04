@@ -208,9 +208,32 @@ internal fun StringView.parseWeeks(): Pair<StringView, Weeks> {
 
 data class Schedule(val weeksDescription: Weeks, val week: Week)
 
-fun parseSchedule(input: String): Schedule {
-    val week = ArrayList<Day>()
+fun parseSchedule(input_: String): Schedule {
+    val input = if(Character.isDigit(input_.first { !Character.isSpaceChar(it) }))
+        input_
+    else run {
+        val firstSpace = input_.indexOfFirst { it == ' ' }
+        if(firstSpace == -1) throw RuntimeException("No comment symbol defined")
+        val comment = input_.substring(0, firstSpace)
 
+        var inComment = true
+        var thisCommentEnd = firstSpace
+        val sb = StringBuilder()
+        while (true) {
+            val nextCommentStart = input_.indexOf(comment, thisCommentEnd)
+            if (!inComment) {
+                val end = if (nextCommentStart == -1) input_.length else nextCommentStart
+                sb.append(input_.substring(thisCommentEnd, end))
+                if (nextCommentStart == -1) break
+            }
+            else {
+                if (nextCommentStart == -1) throw RuntimeException("Comment block must be closed before EOF")
+            }
+            thisCommentEnd = nextCommentStart + comment.length
+            inComment = !inComment
+        }
+        sb.toString()
+    }
 
     var begin = 0
 
@@ -219,6 +242,8 @@ fun parseSchedule(input: String): Schedule {
     val version = versionS.toInt()
 
     if(version == 0) {
+        val week = ArrayList<Day>()
+
         for (i in 0 until 7) {
             val pair = StringView(input, begin, input.length).parseDay()
             begin = pair.first.end + 1
