@@ -24,8 +24,10 @@ import androidx.core.view.setMargins
 import androidx.core.view.setPadding
 import androidx.core.widget.TextViewCompat
 import com.google.android.flexbox.FlexboxLayout
+import com.idk.schedule.MainActivity.Companion.calculateNozeropaddingRange
 import java.io.BufferedReader
 import java.io.InputStreamReader
+import java.lang.ref.WeakReference
 import java.util.*
 import java.util.concurrent.TimeUnit
 import kotlin.math.*
@@ -35,6 +37,9 @@ class MainActivity : AppCompatActivity() {
     private var group = false
 
     lateinit var schedule: Schedule
+
+    private var timer: Timer? = null
+    private var lastUpdate: Date? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -128,13 +133,12 @@ class MainActivity : AppCompatActivity() {
                 applicationContext, "Error opening schedule file: $e",
                 Toast.LENGTH_LONG
             )
+            Log.e("ERROR", "", e)
             toast.show()
             "0,  0,0,0,0,0,0,0,  01,09,2022, 1,0,"
         }
 
         schedule = parseSchedule(scheduleString)
-
-        updateScheduleDisplayTimed()
 
         updateScheduleWeekDisplay()
     }
@@ -198,7 +202,21 @@ class MainActivity : AppCompatActivity() {
 
             val curDay = schedule.week[dayIndex]
 
-            for((i, time) in curDay.time.withIndex()) {
+            val lessonIndicesRange = run {
+                val range0 = curDay.lessons[0].calculateNozeropaddingRange()
+                val range1 = curDay.lessons[1].calculateNozeropaddingRange()
+                val range2 = curDay.lessons[2].calculateNozeropaddingRange()
+                val range3 = curDay.lessons[3].calculateNozeropaddingRange()
+
+                return@run IntRange(
+                    range0.first min range1.first min range2.first min range3.first,
+                    range0.last  max range1.last  max range2.last  max range3.last ,
+                )
+            }
+
+            //for((i, time) in curDay.time.withIndex()) {
+            for(i in lessonIndicesRange) {
+                val time = curDay.time[i]
                 fun lessonAt(group: Boolean, week: Boolean) =
                     curDay.getForGroupAndWeek(group, week).let {
                         if (i in it.indices) it[i] else 0
@@ -367,9 +385,27 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun updateScheduleDisplayTimed() {
-        Log.d("Update", "Updated!")
+    private fun updateScheduleDisplayOnce() {
+        window.decorView.post{
+            val calendar = Calendar.getInstance()
+            val curDate = calendar.time
+            if(lastUpdate == null || curDate.after(lastUpdate)) {
+                calendar.add(Calendar.MINUTE, 1)
+                val nextDate = Date(
+                        calendar.get(Calendar.YEAR) - 1900,
+                        calendar.get(Calendar.MONTH),
+                        calendar.get(Calendar.DAY_OF_MONTH),
+                        calendar.get(Calendar.HOUR_OF_DAY),
+                        calendar.get(Calendar.MINUTE)
+                )
+                lastUpdate = nextDate
+                updateScheduleDisplay(Calendar.getInstance())
+                Log.d("Update", "Updated!")
+            }
+        }
+    }
 
+    private fun updateScheduleDisplayTimed() {
         val next = Calendar.getInstance()
         next.add(Calendar.MINUTE, 1)
 
@@ -381,13 +417,26 @@ class MainActivity : AppCompatActivity() {
             next.get(Calendar.MINUTE)
         )
 
-        window.decorView.post{ updateScheduleDisplay(Calendar.getInstance()) }
+        updateScheduleDisplayOnce()
 
-        Timer().schedule(object : TimerTask() {
+        try { timer?.cancel() } catch(e: Throwable) {}
+        val newTimer = Timer()
+        timer = newTimer
+        newTimer.schedule(object : TimerTask() {
             override fun run() {
                 updateScheduleDisplayTimed()
             }
         }, nextDate)
+    }
+
+    override fun onStop() {
+        super.onStop()
+        try { timer?.cancel() } catch(e: Throwable) {}
+    }
+
+    override fun onResume() {
+        super.onResume()
+        updateScheduleDisplayTimed()
     }
 
     private fun dipToPx(dp: Float): Float = TypedValue.applyDimension(
@@ -465,18 +514,7 @@ class MainActivity : AppCompatActivity() {
         val nextEndTV = findViewById<TextView>(R.id.nextEnd)
 
         val currentLessonIndices = currentDay.getForGroupAndWeek(group, weekIndex)
-
-        val lessonIndicesRange = run {
-            var first = currentLessonIndices.size
-            var last = -1
-            for((i, lessonIndex) in currentLessonIndices.withIndex()) {
-                if(lessonIndex != 0) {
-                    first = min(first, i)
-                    last = max(last, i)
-                }
-            }
-            IntRange(first, last)
-        }
+        val lessonIndicesRange = currentLessonIndices.calculateNozeropaddingRange()
 
         for(i in lessonIndicesRange) {
             val lessonIndex = currentLessonIndices[i]
@@ -703,9 +741,10 @@ class MainActivity : AppCompatActivity() {
                 } catch (e: Exception) {
                     val toast = Toast.makeText(
                         applicationContext,
-                        "Error parsing schedule from file: $e",
+                        "Error parsing schedule from file",
                         Toast.LENGTH_LONG
                     )
+                    Log.e("ERROR", "", e)
                     toast.show()
                 }
             }
@@ -713,16 +752,25 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun readTextFromUri(uri: Uri): String {
-        val stringBuilder = StringBuilder()
-        contentResolver.openInputStream(uri)?.use { inputStream ->
-            BufferedReader(InputStreamReader(inputStream)).use { reader ->
-                var line: String? = reader.readLine()
-                while (line != null) {
-                    stringBuilder.append(line)
-                    line = reader.readLine()
+        return contentResolver.openInputStream(uri)!!.use { inputStream ->
+            String(inputStream.readBytes(), Charsets.UTF_8)
+        }
+    }
+
+    private companion object {
+        fun IntArray.calculateNozeropaddingRange(): IntRange {
+            var first = this.size
+            var last = -1
+            for((i, lessonIndex) in this.withIndex()) {
+                if(lessonIndex != 0) {
+                    first = min(first, i)
+                    last = max(last, i)
                 }
             }
+            return IntRange(first, last)
         }
-        return stringBuilder.toString()
+
+        infix fun Int.min(b: Int) = Math.min(this, b)
+        infix fun Int.max(b: Int) = Math.max(this, b)
     }
 }
