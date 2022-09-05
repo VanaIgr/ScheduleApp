@@ -17,7 +17,8 @@
             android:id="@+id/calendarView"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-            android:orientation="vertical">
+            android:orientation="vertical"
+            android:visibility="gone">
 
             <ScrollView
                 android:layout_width="match_parent"
@@ -39,62 +40,10 @@
             android:orientation="vertical"
             android:visibility="gone">
 
-            <LinearLayout
+            <androidx.viewpager2.widget.ViewPager2
+                android:id="@+id/dayLessonsPager"
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_weight="0"
-                android:background="@color/white"
-                android:elevation="5dp"
-                android:orientation="horizontal"
-                android:padding="@dimen/spacing">
-
-                <TextView
-                    android:id="@+id/weekIndex"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="TextView"
-                    android:textColor="@color/black" />
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginStart="@dimen/spacing2"
-                    android:layout_weight="1"
-                    android:orientation="vertical">
-
-                    <TextView
-                        android:id="@+id/currentEnd"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:text="TextView"
-                        android:textColor="@color/black" />
-
-                    <TextView
-                        android:id="@+id/nextEnd"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:text="TextView"
-                        android:textColor="@color/black" />
-                </LinearLayout>
-
-            </LinearLayout>
-
-            <ScrollView
-                android:id="@+id/elementsSV"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_weight="1">
-
-                <LinearLayout
-                    android:id="@+id/elements"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:paddingBottom="10dp" />
-            </ScrollView>
-
+                android:layout_height="match_parent" />
         </LinearLayout>
     </FrameLayout>
 
