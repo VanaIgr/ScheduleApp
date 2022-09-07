@@ -4,7 +4,10 @@ import android.annotation.SuppressLint
 import android.app.Activity
 import android.content.Context
 import android.content.Intent
-import android.graphics.text.LineBreaker
+import android.content.res.ColorStateList
+import android.graphics.Color
+import android.graphics.drawable.ColorDrawable
+import android.graphics.drawable.RippleDrawable
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -13,24 +16,14 @@ import android.util.Log
 import android.util.TypedValue
 import android.view.*
 import android.widget.*
-import androidx.annotation.ColorRes
-import androidx.annotation.RequiresApi
-import androidx.gridlayout.widget.GridLayout
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.AppCompatTextView
+import androidx.appcompat.widget.SwitchCompat
 import androidx.cardview.widget.CardView
-import androidx.core.view.MenuCompat
-import androidx.core.view.setMargins
-import androidx.core.view.setPadding
-import androidx.core.widget.TextViewCompat
+import androidx.core.view.*
 import androidx.viewpager2.widget.ViewPager2
-import com.google.android.flexbox.FlexboxLayout
-import java.io.BufferedReader
-import java.io.InputStreamReader
-import java.lang.ref.WeakReference
+import java.sql.Time
 import java.util.*
-import java.util.concurrent.TimeUnit
-import kotlin.collections.ArrayList
 import kotlin.math.*
 
 
@@ -75,30 +68,156 @@ class MainActivity : AppCompatActivity() {
             updateScheduleDisplay(c)
         }
 
-        with(findViewById<Switch>(R.id.groupSwitch)) {
-            isChecked = group
+        val settingsB = findViewById<View>(R.id.settings)
 
-            setOnCheckedChangeListener { _, isChecked ->
-                group = isChecked
-                val editor = sharedPref.edit()
-                editor.putBoolean("group", group)
-                editor.apply()
-                updateScheduleDisplay(Calendar.getInstance())
+        val settingsPopup = PopupWindow(this)
+        var dismissTimer: Timer? = null
+        fun setDismiss() {
+            try{ dismissTimer?.cancel() } catch(e: Throwable) {}
+            dismissTimer = Timer().apply {
+                schedule(
+                    object : TimerTask() {
+                        override fun run() {
+                            settingsPopup.contentView.post{ settingsPopup.dismiss() }
+                        }
+                    },
+                    200L
+                )
             }
         }
+        settingsPopup.apply menu@{
+            contentView = LinearLayout(this@MainActivity).apply {
+                    orientation = LinearLayout.VERTICAL
 
-        val settingsB = findViewById<View>(R.id.settings)
-        val settingsPopup = PopupMenu(this, settingsB)
-        settingsPopup.menuInflater.inflate(R.menu.parameters, settingsPopup.menu)
-        settingsPopup.menu.add(1, Menu.FIRST, Menu.NONE, "Выбрать файл...")
-        MenuCompat.setGroupDividerEnabled(settingsPopup.menu, true)
-        settingsB.setOnClickListener { settingsPopup.show() }
-        settingsPopup.setOnMenuItemClickListener { return@setOnMenuItemClickListener when(it.itemId) {
-            Menu.FIRST -> {
-                openFile(); true
-            }
-            else -> false
-        } }
+                    val itemParams = fun() = LinearLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        0
+                    ).apply {
+                        weight = 1.0f
+                    }
+
+                    val a = TypedValue()
+                    assert(theme.resolveAttribute(
+                        android.R.attr.colorControlHighlight,
+                        a, true
+                    ))
+                    val pressedColor = a.data
+
+                    addView(
+                        FrameLayout(this@MainActivity).apply {
+                            val switch = SwitchCompat(this@MainActivity).apply {
+                                textSize = spToPx(10.0f)
+                                setTextColor(resources.getColor(R.color.black))
+                                isChecked = group
+                                isClickable = false
+                                isFocusable = false
+                            }
+
+                            fun updateSwitch(isChecked: Boolean) {
+                                switch.isChecked = isChecked
+                                switch.text = "Номер группы: " + if (isChecked) 2 else 1
+                            }
+
+                            foreground = RippleDrawable(
+                                ColorStateList.valueOf(pressedColor),
+                                null, null
+                            )
+                            setOnClickListener {
+                                group = !group
+                                updateSwitch(group)
+                                val editor = sharedPref.edit()
+                                editor.putBoolean("group", group)
+                                editor.apply()
+                                updateScheduleDisplay(Calendar.getInstance())
+                                setDismiss()
+                            }
+                            isClickable = true
+                            isFocusable = false
+
+                            updateSwitch(group)
+
+                            addView(
+                                switch,
+                                FrameLayout.LayoutParams(
+                                    ViewGroup.LayoutParams.WRAP_CONTENT,
+                                    ViewGroup.LayoutParams.WRAP_CONTENT
+                                ).apply {
+                                    gravity = Gravity.FILL_HORIZONTAL or Gravity.CENTER_VERTICAL
+                                    setPadding(dipToPx(10.0f).toInt())
+                                }
+                            )
+                        },
+                        itemParams()
+                    )
+
+                    addView(
+                        FrameLayout(this@MainActivity).apply {
+                            addView(
+                                TextView(this@MainActivity).apply {
+                                    textSize = spToPx(10.0f)
+                                    setTextColor(resources.getColor(R.color.black))
+                                    text = "Выбрать файл..."
+                                    isClickable = false
+                                    isFocusable = false
+                                },
+                                FrameLayout.LayoutParams(
+                                    ViewGroup.LayoutParams.WRAP_CONTENT,
+                                    ViewGroup.LayoutParams.WRAP_CONTENT
+                                ).apply {
+                                    gravity = Gravity.FILL_HORIZONTAL or Gravity.CENTER_VERTICAL
+                                    setPadding(dipToPx(10.0f).toInt())
+                                }
+                            )
+
+
+
+                            foreground = RippleDrawable(
+                                ColorStateList.valueOf(pressedColor),
+                                null, null
+                            )
+                            setOnClickListener {
+                                openFile()
+                                setDismiss()
+                            }
+                            isClickable = true
+                            isFocusable = true
+                        },
+                        itemParams()
+                    )
+
+                    setBackgroundColor(Color.WHITE)
+
+
+                    elevation = dipToPx(10.0f)
+                }
+
+            setBackgroundDrawable(ColorDrawable(Color.WHITE))
+            elevation = dipToPx(10.0f)
+            isOutsideTouchable = true
+            isTouchable = true
+            isFocusable = true
+        }
+
+        settingsB.setOnClickListener {
+            try{ dismissTimer?.cancel() } catch(e: Throwable) {}
+            val content = settingsPopup.contentView
+            content.measure(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+            settingsPopup.width = content.measuredWidth
+            settingsPopup.height = content.measuredHeight
+            settingsPopup.showAsDropDown(it)
+        }
+
+        //val settingsPopup = PopupMenu(this, settingsB)
+        //settingsPopup.menuInflater.inflate(R.menu.parameters, settingsPopup.menu)
+        //settingsPopup.menu.add(1, Menu.FIRST, Menu.NONE, "Выбрать файл...")
+        //MenuCompat.setGroupDividerEnabled(settingsPopup.menu, true)
+        //settingsB.setOnClickListener { settingsPopup.show() }
+        //settingsPopup.setOnMenuItemClickListener { return@setOnMenuItemClickListener when(it.itemId) {
+        //    Menu.FIRST -> {
+        //        openFile(); true
+        //    }
+        //    else -> false
+        //} }
 
         val lessonsView = findViewById<ViewGroup>(R.id.lessonsView)
         val calendarView = findViewById<ViewGroup>(R.id.calendarView)
@@ -148,15 +267,16 @@ class MainActivity : AppCompatActivity() {
         dayLessonAdapter = DayLessonsAdapter()
         pager.adapter = dayLessonAdapter
 
-        pager.currentItem = 1
+        pager.setCurrentItem(1, false)
         pager.registerOnPageChangeCallback(object : ViewPager2.OnPageChangeCallback() {
             override fun onPageScrollStateChanged(state: Int) {
                 super.onPageScrollStateChanged(state)
 
                 if (state == ViewPager2.SCROLL_STATE_IDLE) {
-                    if(pager.currentItem != 1) {
+                    if (pager.currentItem != 1) {
                         daysOffset += pager.currentItem - 1
-                        pager.currentItem = 1
+                        pager.setCurrentItem(1, false)
+                        updateScheduleDisplay(Calendar.getInstance())
                     }
                 }
             }
@@ -232,7 +352,7 @@ class MainActivity : AppCompatActivity() {
 
                 return@run IntRange(
                     range0.first min range1.first min range2.first min range3.first,
-                    range0.last  max range1.last  max range2.last  max range3.last ,
+                    range0.last max range1.last max range2.last max range3.last,
                 )
             }
 
@@ -274,7 +394,7 @@ class MainActivity : AppCompatActivity() {
                     val view = if(lessonIndex == 0)
                         FrameLayout(this@MainActivity).apply { addView(View(this@MainActivity)) }
                     else {
-                        val lesson = curDay.lessonsUsed[lessonIndex-1]
+                        val lesson = curDay.lessonsUsed[lessonIndex - 1]
                         FrameLayout(this@MainActivity).apply {
                             addView(
                                 AppCompatTextView(this@MainActivity).apply {
@@ -282,23 +402,23 @@ class MainActivity : AppCompatActivity() {
                                     val textSB = StringBuilder()
                                     textSB.append(lesson.name)
                                     fun addOther(text: String) {
-                                        if(text.isEmpty()) return
+                                        if (text.isEmpty()) return
                                         textSB.append(' ')
-                                        val newText = if(text.length < 20) text.replace(' ', noBreakSpace)
+                                        val newText = if (text.length < 20) text.replace(' ', noBreakSpace)
                                         else text
                                         textSB.append(newText)
                                     }
                                     addOther(lesson.type)
                                     addOther(lesson.loc)
                                     addOther(lesson.extra)
-    
+
                                     this.text = textSB.toString()
                                     setTextColor(resources.getColor(R.color.black))
                                     textAlignment = TextView.TEXT_ALIGNMENT_CENTER
                                     isSingleLine = false
                                     gravity = Gravity.CENTER
                                     textSize = spToPx(10.0f)
-                                    if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                                         @SuppressLint("WrongConstant") // it's declared as the corresponding constant in LineBreaker (API level 29)
                                         breakStrategy = Layout.BREAK_STRATEGY_BALANCED
                                     }
@@ -326,9 +446,9 @@ class MainActivity : AppCompatActivity() {
                 }
 
                 val groupHorizontal = lessonAt(group = false, false) == lessonAt(group = true, false) &&
-                                      lessonAt(group = false, true ) == lessonAt(group = true, true )
+                                      lessonAt(group = false, true) == lessonAt(group = true, true)
                 val groupVertical = lessonAt(false, week = false) == lessonAt(false, week = true) &&
-                                     lessonAt(true , week = false) == lessonAt(true , week = true)
+                                     lessonAt(true, week = false) == lessonAt(true, week = true)
 
                 row.addView(
                     TableLayout(this).apply {
@@ -414,11 +534,11 @@ class MainActivity : AppCompatActivity() {
             if(lastUpdate == null || curDate.after(lastUpdate)) {
                 calendar.add(Calendar.MINUTE, 1)
                 val nextDate = Date(
-                        calendar.get(Calendar.YEAR) - 1900,
-                        calendar.get(Calendar.MONTH),
-                        calendar.get(Calendar.DAY_OF_MONTH),
-                        calendar.get(Calendar.HOUR_OF_DAY),
-                        calendar.get(Calendar.MINUTE)
+                    calendar.get(Calendar.YEAR) - 1900,
+                    calendar.get(Calendar.MONTH),
+                    calendar.get(Calendar.DAY_OF_MONTH),
+                    calendar.get(Calendar.HOUR_OF_DAY),
+                    calendar.get(Calendar.MINUTE)
                 )
                 lastUpdate = nextDate
                 updateScheduleDisplay(Calendar.getInstance())
@@ -441,7 +561,7 @@ class MainActivity : AppCompatActivity() {
 
         updateScheduleDisplayOnce()
 
-        try { timer?.cancel() } catch(e: Throwable) {}
+        try { timer?.cancel() } catch (e: Throwable) {}
         val newTimer = Timer()
         timer = newTimer
         newTimer.schedule(object : TimerTask() {
@@ -453,7 +573,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onStop() {
         super.onStop()
-        try { timer?.cancel() } catch(e: Throwable) {}
+        try { timer?.cancel() } catch (e: Throwable) {}
     }
 
     override fun onResume() {

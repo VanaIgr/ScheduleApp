@@ -1,23 +1,18 @@
 package com.idk.schedule
 
-import android.R
-import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.widget.CalendarView
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
 import androidx.cardview.widget.CardView
-import androidx.fragment.app.Fragment
 import androidx.recyclerview.widget.RecyclerView
-import androidx.viewpager2.adapter.FragmentStateAdapter
 import java.util.*
 import java.util.concurrent.TimeUnit
 
 class DayLessonsAdapter : RecyclerView.Adapter<DayLessonsAdapter.DayLessonsViewHolder>() {
-    private lateinit var curDays: DaysInfo
+    private var curDays: DaysInfo? = null
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): DayLessonsViewHolder {
         val view = LayoutInflater.from(parent.context).inflate(R.layout.lessons_fragment, parent, false)
@@ -25,7 +20,7 @@ class DayLessonsAdapter : RecyclerView.Adapter<DayLessonsAdapter.DayLessonsViewH
     }
 
     override fun onBindViewHolder(holder: DayLessonsViewHolder, position: Int) {
-        holder.setFromDay(curDays, position - 1)
+        curDays?.let{ holder.setFromDay(it, position - 1) }
     }
 
     override fun getItemCount(): Int = 3
@@ -58,7 +53,7 @@ class DayLessonsAdapter : RecyclerView.Adapter<DayLessonsAdapter.DayLessonsViewH
                 maxCardElevation = c.dipToPx(elevation)
             }
             val addEl = fun(id: Int): View {
-                val el_l = inflater.inflate(com.idk.schedule.R.layout.element_l, elements, false) as ViewGroup
+                val el_l = inflater.inflate(R.layout.element_l, elements, false) as ViewGroup
                 el_l.setElementElevation(3.0f)
                 val container = el_l.findViewById<ViewGroup>(com.idk.schedule.R.id.container)
                 elements.addView(el_l)
@@ -118,7 +113,7 @@ class DayLessonsAdapter : RecyclerView.Adapter<DayLessonsAdapter.DayLessonsViewH
 
             for(i in lessonIndicesRange) {
                 val lessonIndex = currentLessonIndices[i]
-                val lessonEl = addEl(com.idk.schedule.R.layout.element)
+                val lessonEl = addEl(R.layout.element)
 
                 val lessonMinutes = currentDay.time[i]
                 val nextLessonI = run {
@@ -145,13 +140,13 @@ class DayLessonsAdapter : RecyclerView.Adapter<DayLessonsAdapter.DayLessonsViewH
 
                 when {
                     lessonMinutes.last < curMinuteOfDay    -> {
-                        lessonEl.setElementForeground(com.idk.schedule.R.color.prev_el_overlay)
+                        lessonEl.setElementForeground(R.color.el_overlay)
                         lessonEl.scaleX = 0.9f
                         lessonEl.scaleY = 0.9f
                         endOfDay = true
                     }
                     lessonMinutes.first > curMinuteOfDay -> {
-                        lessonEl.setElementForeground(com.idk.schedule.R.color.next_el_overlay)
+                        lessonEl.setElementForeground(R.color.el_overlay)
                         lessonEl.scaleX = 0.9f
                         lessonEl.scaleY = 0.9f
                     }
@@ -180,7 +175,7 @@ class DayLessonsAdapter : RecyclerView.Adapter<DayLessonsAdapter.DayLessonsViewH
                 }
 
                 if(nextLessonMinutes != null) {
-                    val breakEl = addEl(com.idk.schedule.R.layout.break_l)
+                    val breakEl = addEl(R.layout.break_l)
 
                     breakEl.setBreakText(
                             "${minuteOfDayToString(lessonMinutes.last)}-${
@@ -195,12 +190,12 @@ class DayLessonsAdapter : RecyclerView.Adapter<DayLessonsAdapter.DayLessonsViewH
 
                     when {
                         nextLessonMinutes.first <= curMinuteOfDay -> {
-                            breakEl.setElementForeground(com.idk.schedule.R.color.prev_el_overlay)
+                            breakEl.setElementForeground(R.color.el_overlay)
                             breakEl.scaleX = 0.9f
                             breakEl.scaleY = 0.9f
                         }
                         lessonMinutes.last >= curMinuteOfDay -> {
-                            breakEl.setElementForeground(com.idk.schedule.R.color.next_el_overlay)
+                            breakEl.setElementForeground(R.color.el_overlay)
                             breakEl.scaleX = 0.9f
                             breakEl.scaleY = 0.9f
                         }
@@ -245,8 +240,8 @@ class DayLessonsAdapter : RecyclerView.Adapter<DayLessonsAdapter.DayLessonsViewH
 
         private companion object {
             private fun View.setBreakText(time: String, text: String) {
-                findViewById<TextView>(com.idk.schedule.R.id.timeTV).text = time
-                findViewById<TextView>(com.idk.schedule.R.id.textTV).text = text
+                findViewById<TextView>(R.id.timeTV).text = time
+                findViewById<TextView>(R.id.textTV).text = text
             }
 
             private fun View.setElementText(element: Lesson, time: IntRange) = setElementText(
@@ -261,11 +256,11 @@ class DayLessonsAdapter : RecyclerView.Adapter<DayLessonsAdapter.DayLessonsViewH
                     time: String, type: String, loc: String, name: String,
                     extra: String
             ) {
-                findViewById<TextView>(com.idk.schedule.R.id.timeTV).text = time
-                findViewById<TextView>(com.idk.schedule.R.id.typeTV).text = type
-                findViewById<TextView>(com.idk.schedule.R.id.locTV).text = loc
-                findViewById<TextView>(com.idk.schedule.R.id.nameTV).text = name
-                findViewById<TextView>(com.idk.schedule.R.id.extraTV).text = extra
+                findViewById<TextView>(R.id.timeTV).text = time
+                findViewById<TextView>(R.id.typeTV).text = type
+                findViewById<TextView>(R.id.locTV).text = loc
+                findViewById<TextView>(R.id.nameTV).text = name
+                findViewById<TextView>(R.id.extraTV).text = extra
             }
 
             private fun View.setElementTextEmpty(time: IntRange) = setElementText(
@@ -277,45 +272,8 @@ class DayLessonsAdapter : RecyclerView.Adapter<DayLessonsAdapter.DayLessonsViewH
             )
 
             private fun View.setElementForeground(foreground: Int) {
-                findViewById<View>(com.idk.schedule.R.id.foreground).setBackgroundResource(foreground)
+                findViewById<View>(R.id.foreground).setBackgroundResource(foreground)
             }
         }
     }
 }
-
-/*class DayLessonsAdapter(fragment: Fragment) : FragmentStateAdapter(fragment) {
-
-    override fun getItemCount(): Int = 100
-
-    override fun createFragment(position: Int): Fragment {
-        // Return a NEW fragment instance in createFragment(int)
-        val fragment = DemoObjectFragment()
-        fragment.arguments = Bundle().apply {
-            // Our object is just an integer :-P
-            putInt(ARG_OBJECT, position + 1)
-        }
-        return fragment
-    }
-}
-
-private const val ARG_OBJECT = "object"
-
-// Instances of this class are fragments representing a single
-// object in our collection.
-class DemoObjectFragment : Fragment() {
-
-    override fun onCreateView(
-            inflater: LayoutInflater,
-            container: ViewGroup?,
-            savedInstanceState: Bundle?
-    ): View {
-        return inflater.inflate(R.layout.fragment_collection_object, container, false)
-    }
-
-    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
-        arguments?.takeIf { it.containsKey(ARG_OBJECT) }?.apply {
-            val textView: TextView = view.findViewById(android.R.id.text1)
-            textView.text = getInt(ARG_OBJECT).toString()
-        }
-    }
-}*/
