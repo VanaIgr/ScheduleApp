@@ -56,12 +56,37 @@
         android:orientation="horizontal"
         android:padding="@dimen/spacing">
 
-        <!-- Dummy item to prevent AutoCompleteTextView from receiving focus -->
+        <LinearLayout
+            android:layout_width="0px"
+            android:layout_height="match_parent"
+            android:layout_marginStart="@dimen/spacing2"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/currentEnd"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="TextView"
+                android:textColor="@color/black"
+                android:textSize="14sp" />
+
+            <TextView
+                android:id="@+id/nextEnd"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="TextView"
+                android:textColor="@color/black"
+                android:textSize="14sp" />
+        </LinearLayout>
 
         <LinearLayout
-            android:layout_width="match_parent"
+            android:layout_width="0px"
             android:layout_height="match_parent"
             android:layout_marginStart="@dimen/spacing"
+            android:layout_weight="1"
             android:gravity="right"
             android:minHeight="40dp"
             android:orientation="horizontal">
@@ -99,45 +124,18 @@
 
             </FrameLayout>
 
-            <FrameLayout
+            <ImageView
+                android:id="@+id/settings"
                 android:layout_width="wrap_content"
                 android:layout_height="match_parent"
                 android:layout_marginStart="@dimen/spacing"
-                android:layout_weight="0">
-
-                <ImageView
-                    android:id="@+id/settings"
-                    android:layout_width="wrap_content"
-                    android:layout_height="match_parent"
-                    android:layout_gravity="end"
-                    android:adjustViewBounds="true"
-                    android:clickable="true"
-                    android:focusable="true"
-                    android:scaleType="center"
-                    app:srcCompat="@drawable/ic_baseline_settings_24" />
-            </FrameLayout>
-        </LinearLayout>
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:visibility="gone">
-
-            <EditText
-                android:id="@+id/getText"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:visibility="visible" />
-
-            <Button
-                android:id="@+id/accept"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
                 android:layout_weight="0"
-                android:text="Accept"
-                android:visibility="visible" />
+                android:adjustViewBounds="true"
+                android:clickable="true"
+                android:focusable="true"
+                android:scaleType="center"
+                app:srcCompat="@drawable/ic_baseline_settings_24" />
+
         </LinearLayout>
 
     </LinearLayout>

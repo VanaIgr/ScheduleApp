@@ -2,8 +2,10 @@ package com.idk.schedule
 
 import android.annotation.SuppressLint
 import android.app.Activity
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.res.ColorStateList
 import android.graphics.Color
 import android.graphics.drawable.ColorDrawable
@@ -21,9 +23,11 @@ import androidx.appcompat.widget.AppCompatTextView
 import androidx.appcompat.widget.SwitchCompat
 import androidx.cardview.widget.CardView
 import androidx.core.view.*
+import androidx.viewpager.widget.ViewPager.OnPageChangeListener
 import androidx.viewpager2.widget.ViewPager2
-import java.sql.Time
 import java.util.*
+import java.util.concurrent.TimeUnit
+import kotlin.collections.ArrayList
 import kotlin.math.*
 
 
@@ -33,10 +37,21 @@ class MainActivity : AppCompatActivity() {
     lateinit var schedule: Schedule
 
     private var timer: Timer? = null
-    private var lastUpdate: Date? = null
+    private var lastUpdate: Calendar? = null
 
     private lateinit var dayLessonAdapter: DayLessonsAdapter
     private var daysOffset = 0
+
+    private lateinit var currentEndTV: TextView
+    private lateinit var nextEndTV: TextView
+
+    class TimeChangeBroadcastReceiver(private val callback: () -> Unit) : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            callback()
+        }
+    }
+
+    private val timeChangedReceiver: BroadcastReceiver = TimeChangeBroadcastReceiver { updateScheduleDisplayOnce() }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -45,40 +60,17 @@ class MainActivity : AppCompatActivity() {
         val sharedPref = getSharedPreferences("info", Context.MODE_PRIVATE)
         group = sharedPref.getBoolean("group", group)
 
-        findViewById<Button>(R.id.accept).setOnClickListener {
-            val source = findViewById<TextView>(R.id.getText).text.toString()
-            val end = source.length
-
-            val year_ = StringView(source, 0, end).parseNextValue()
-            val month_ = StringView(source, year_.end + 1, end).parseNextValue()
-            val day_ = StringView(source, month_.end + 1, end).parseNextValue()
-            val hour_ = StringView(source, day_.end + 1, end).parseNextValue()
-            val minute_ = StringView(source, hour_.end + 1, end).parseNextValue()
-
-            val year = year_.get().trim().toInt()
-            val month = month_.get().trim().toInt()
-            val day = day_.get().trim().toInt()
-            val hour = hour_.get().trim().toInt()
-            val minute = minute_.get().trim().toInt()
-
-            val c = Calendar.getInstance()
-            c.clear()
-            c.set(year, month - 1, day, hour, minute)
-
-            updateScheduleDisplay(c)
-        }
-
         val settingsB = findViewById<View>(R.id.settings)
 
         val settingsPopup = PopupWindow(this)
         var dismissTimer: Timer? = null
         fun setDismiss() {
-            try{ dismissTimer?.cancel() } catch(e: Throwable) {}
+            try{ dismissTimer?.cancel() } catch (e: Throwable) {}
             dismissTimer = Timer().apply {
                 schedule(
                     object : TimerTask() {
                         override fun run() {
-                            settingsPopup.contentView.post{ settingsPopup.dismiss() }
+                            settingsPopup.contentView.post { settingsPopup.dismiss() }
                         }
                     },
                     200L
@@ -199,7 +191,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         settingsB.setOnClickListener {
-            try{ dismissTimer?.cancel() } catch(e: Throwable) {}
+            try{ dismissTimer?.cancel() } catch (e: Throwable) {}
             val content = settingsPopup.contentView
             content.measure(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT)
             settingsPopup.width = content.measuredWidth
@@ -207,20 +199,11 @@ class MainActivity : AppCompatActivity() {
             settingsPopup.showAsDropDown(it)
         }
 
-        //val settingsPopup = PopupMenu(this, settingsB)
-        //settingsPopup.menuInflater.inflate(R.menu.parameters, settingsPopup.menu)
-        //settingsPopup.menu.add(1, Menu.FIRST, Menu.NONE, "Выбрать файл...")
-        //MenuCompat.setGroupDividerEnabled(settingsPopup.menu, true)
-        //settingsB.setOnClickListener { settingsPopup.show() }
-        //settingsPopup.setOnMenuItemClickListener { return@setOnMenuItemClickListener when(it.itemId) {
-        //    Menu.FIRST -> {
-        //        openFile(); true
-        //    }
-        //    else -> false
-        //} }
-
         val lessonsView = findViewById<ViewGroup>(R.id.lessonsView)
         val calendarView = findViewById<ViewGroup>(R.id.calendarView)
+
+        currentEndTV = findViewById(R.id.currentEnd)
+        nextEndTV = findViewById(R.id.nextEnd)
 
         run {
             val toLessonsView = findViewById<ImageView>(R.id.selectDayView)
@@ -279,6 +262,14 @@ class MainActivity : AppCompatActivity() {
                         updateScheduleDisplay(Calendar.getInstance())
                     }
                 }
+            }
+
+            override fun onPageScrolled(position: Int, positionOffset: Float, positionOffsetPixels: Int) {
+                Log.d("onPageScrolled", "$position $positionOffset $positionOffsetPixels")
+            }
+
+            override fun onPageSelected(position: Int) {
+                Log.d("OnPageSelected", position.toString())
             }
         })
 
@@ -530,17 +521,9 @@ class MainActivity : AppCompatActivity() {
     private fun updateScheduleDisplayOnce() {
         window.decorView.post{
             val calendar = Calendar.getInstance()
-            val curDate = calendar.time
-            if(lastUpdate == null || curDate.after(lastUpdate)) {
-                calendar.add(Calendar.MINUTE, 1)
-                val nextDate = Date(
-                    calendar.get(Calendar.YEAR) - 1900,
-                    calendar.get(Calendar.MONTH),
-                    calendar.get(Calendar.DAY_OF_MONTH),
-                    calendar.get(Calendar.HOUR_OF_DAY),
-                    calendar.get(Calendar.MINUTE)
-                )
-                lastUpdate = nextDate
+            val curDate = calendar.copyToMinute()
+            if(lastUpdate == null || curDate == lastUpdate) {
+                lastUpdate = curDate
                 updateScheduleDisplay(Calendar.getInstance())
                 Log.d("Update", "Updated!")
             }
@@ -571,22 +554,176 @@ class MainActivity : AppCompatActivity() {
         }, nextDate)
     }
 
-    override fun onStop() {
-        super.onStop()
+    override fun onPause() {
+        super.onPause()
         try { timer?.cancel() } catch (e: Throwable) {}
+
+        unregisterReceiver(timeChangedReceiver)
     }
 
     override fun onResume() {
         super.onResume()
         updateScheduleDisplayTimed()
+
+        val filter = IntentFilter().apply {
+            addAction(Intent.ACTION_DATE_CHANGED)
+            addAction(Intent.ACTION_TIME_CHANGED)
+            addAction(Intent.ACTION_TIMEZONE_CHANGED)
+        }
+        registerReceiver(timeChangedReceiver, filter)
+    }
+
+    private fun calculateDayLessons(currentDay: Day, curMinuteOfDay: Int, weekIndex: Boolean): Pair<Array<DayElement>, Int> {
+        val currentLessonIndices = currentDay.getForGroupAndWeek(group, weekIndex)
+        val lessonIndicesRange = currentLessonIndices.calculateNozeropaddingRange()
+
+        val dayElements = ArrayList<DayElement>()
+        fun prevElNotBrake(): Boolean = dayElements.isEmpty() || dayElements.last().lesson != null
+
+        var activeLesson = if(
+            lessonIndicesRange.isEmpty() || curMinuteOfDay < currentDay.time[lessonIndicesRange.first].first
+        ) -1
+        else 0
+
+        for(i in lessonIndicesRange) {
+            val lessonIndex = currentLessonIndices[i]
+            val lessonMinutes = currentDay.time[i]
+
+            val curLesson = if(lessonIndex == 0) null else currentDay.lessonsUsed[lessonIndex - 1]
+            if(curLesson != null || prevElNotBrake()) dayElements.add(DayElement(curLesson, lessonMinutes))
+            else {
+                val lastElement = dayElements[dayElements.lastIndex]
+                dayElements[dayElements.lastIndex] = DayElement(
+                    null,
+                    IntRange(lastElement.time.first, lessonMinutes.last),
+                )
+            }
+
+            if(curMinuteOfDay > lessonMinutes.last) activeLesson = dayElements.size //next one
+
+            if(i != lessonIndicesRange.last) {
+                val nextLessonMinutes = currentDay.time[i + 1]
+
+                val breakMinutes = IntRange(lessonMinutes.last, nextLessonMinutes.first)
+                if(prevElNotBrake()) dayElements.add(DayElement(
+                    null, breakMinutes
+                ))
+                else {
+                    val lastElement = dayElements[dayElements.lastIndex]
+                    dayElements[dayElements.lastIndex] = DayElement(
+                        null,
+                        IntRange(lastElement.time.first, breakMinutes.last),
+                    )
+                }
+
+                if(curMinuteOfDay > breakMinutes.last) activeLesson = dayElements.size //next one
+            }
+        }
+
+        return dayElements.toTypedArray() to activeLesson
     }
 
     private fun updateScheduleDisplay(now: Calendar) {
-        dayLessonAdapter.updateDays(DayLessonsAdapter.DaysInfo(
-            now, schedule, daysOffset, group
-        ))
+        fun calcAndUpdateDayLessons(timepoint: Calendar, dayOffset: Int, isCurDay: Boolean): DayLessons {
+            val curHour = timepoint.get(Calendar.HOUR_OF_DAY)
+            val curMinute = timepoint.get(Calendar.MINUTE)
+            val curDayOfWeek = floorMod(timepoint.get(Calendar.DAY_OF_WEEK) - 2, 7) //Monday is 2 but should be 0, Sunday is 0 but should be 6
+            val curMinuteOfDay = curHour * 60 + curMinute
 
-        //Log.d("AA", "${scrollTo?.let { (it.top + it.bottom) } ?: "none"}")
+            //very robust
+            val yearStart = run {
+                val calendar = Calendar.getInstance()
+                calendar.clear()
+                calendar.set(
+                    schedule.weeksDescription.year,
+                    schedule.weeksDescription.month - 1,
+                    schedule.weeksDescription.day
+                )
+                val weekOfYear = calendar.get(Calendar.WEEK_OF_YEAR)
+                calendar.clear()
+                calendar.set(Calendar.YEAR, schedule.weeksDescription.year)
+                calendar.set(Calendar.WEEK_OF_YEAR, weekOfYear)
+
+                Date(
+                    calendar.get(Calendar.YEAR) - 1900,
+                    calendar.get(Calendar.MONTH),
+                    calendar.get(Calendar.DAY_OF_MONTH),
+                ).time
+            }
+            val curDay = Date(
+                timepoint.get(Calendar.YEAR) - 1900,
+                timepoint.get(Calendar.MONTH),
+                timepoint.get(Calendar.DAY_OF_MONTH)
+            ).time
+            val weekDiff = floorDiv(
+                TimeUnit.DAYS.convert(curDay - yearStart, TimeUnit.MILLISECONDS),
+                7L
+            ).toInt()
+            val weekIndex = schedule.weeksDescription.weeks[floorMod(
+                weekDiff,
+                schedule.weeksDescription.weeks.size
+            )]
+            val currentDay = schedule.week[curDayOfWeek]
+
+            val (dayLessons, activeLesson) = calculateDayLessons(currentDay, curMinuteOfDay, weekIndex)
+
+            if(isCurDay) when {
+                dayLessons.isEmpty() -> {
+                    currentEndTV.text = "Выходной"
+                    nextEndTV.text = ""
+                }
+                activeLesson == -1 -> {
+                    val startLessonMinutes = dayLessons[0].time
+                    currentEndTV.text = "До начала учебного дня: ${startLessonMinutes.first - curMinuteOfDay} мин."
+                    nextEndTV.text = ""
+                }
+                activeLesson == dayLessons.size -> {
+                    currentEndTV.text = "Конец учебного дня"
+                    nextEndTV.text = ""
+                }
+                else -> {
+                    val lessonElement = dayLessons[activeLesson]
+                    val lesson = lessonElement.lesson
+                    val lessonMinutes = lessonElement.time
+
+                    val nextLessonMinutes = if(activeLesson+1 in dayLessons.indices) dayLessons[activeLesson + 1].time else null
+
+                    if(lesson == null) {
+                        currentEndTV.text = "До конца перемены: ${lessonMinutes.last - curMinuteOfDay} мин."
+                        if(nextLessonMinutes != null) nextEndTV.text = "До конца след. пары: ${nextLessonMinutes.last - curMinuteOfDay} мин."
+                        else {
+                            Log.e("ERROR", "nextLessonMinutes is null for empty lesson element (which means that last lesson is a break)")
+                            nextEndTV.text = ""
+                        }
+                    }
+                    else {
+                        currentEndTV.text = "До конца пары: ${lessonMinutes.last - curMinuteOfDay} мин."
+                        if(nextLessonMinutes != null) {
+                            nextEndTV.text = "До конца перемены: ${nextLessonMinutes.last - curMinuteOfDay} мин."
+                        }
+                        else nextEndTV.text = "Последняя пара"
+                    }
+                }
+            }
+
+            return DayLessons(timepoint, dayOffset, weekIndex, dayLessons, if (isCurDay) activeLesson else -1)
+        }
+
+        var updateCurDay = true
+        val daysLessons = Array(3) {
+            val dayOffset = daysOffset + it-1
+            val isCurDay = dayOffset == 0
+            if(isCurDay) updateCurDay = false
+            calcAndUpdateDayLessons(
+                (now.clone() as Calendar).apply { add(Calendar.DAY_OF_YEAR, dayOffset) },
+                dayOffset,
+                isCurDay
+            )
+        }
+
+        if(updateCurDay) calcAndUpdateDayLessons(now, dayOffset = 0, isCurDay = true)
+
+        dayLessonAdapter.updateDays(daysLessons)
     }
 
     private fun writeSchedule(text: String) {
@@ -634,6 +771,17 @@ class MainActivity : AppCompatActivity() {
     private fun readTextFromUri(uri: Uri): String {
         return contentResolver.openInputStream(uri)!!.use { inputStream ->
             String(inputStream.readBytes(), Charsets.UTF_8)
+        }
+    }
+
+    private companion object {
+        fun Calendar.copyToMinute() = (clone() as Calendar).apply {
+            clear()
+            set(Calendar.YEAR, get(Calendar.YEAR))
+            set(Calendar.MONTH, get(Calendar.MONTH))
+            set(Calendar.DAY_OF_MONTH, get(Calendar.DAY_OF_MONTH))
+            set(Calendar.HOUR_OF_DAY, get(Calendar.HOUR_OF_DAY))
+            set(Calendar.MINUTE, get(Calendar.MINUTE))
         }
     }
 }
