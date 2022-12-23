@@ -229,35 +229,45 @@ fun parseSchedule(input_: String): Schedule {
         val firstSpace = input_.indexOfFirst { Character.isSpaceChar(it) }
         if(firstSpace == -1) throw RuntimeException("No comment symbol defined")
         val comment = input_.substring(0, firstSpace)
-        val newlinesInComment = comment.count { it == '\n' }
+
+        val commentSb = StringBuilder()
+        val commentRepl = run {
+            for(c in comment) {
+                if(c == '\n') commentSb.append('\n')
+                else commentSb.append(' ')
+            }
+            commentSb.toString()
+        }
 
         var inComment = true
         var thisCommentEnd = firstSpace
         val sb = StringBuilder()
 
-        for(i in 0 until newlinesInComment) sb.append('\n')
+        sb.append(commentRepl)
 
         while (true) {
             val nextCommentStart = Sos(input_).indexOf(comment, thisCommentEnd)
             if (!inComment) {
                 val end = if (nextCommentStart == -1) input_.length else nextCommentStart
                 sb.append(input_.substring(thisCommentEnd, end))
-                for(i in 0 until newlinesInComment) sb.append('\n')
+                sb.append(commentRepl)
                 if (nextCommentStart == -1) break
             }
             else {
-                val (line, char) = countPos(input_, thisCommentEnd)
                 if (nextCommentStart == -1) {
+                    val (line, char) = countPos(input_, thisCommentEnd)
                     throw RuntimeException(
                         "Comment block `$comment` at $line:$char must be closed before EOF"
                     )
                 }
 
-
-                val newlinesInThisComment = input_.substring(thisCommentEnd, nextCommentStart)
-                    .count{ it == '\n' }
-                for(i in 0 until newlinesInThisComment) sb.append('\n')
-                for(i in 0 until newlinesInComment) sb.append('\n')
+                commentSb.clear()
+                for(c in input_.substring(thisCommentEnd, nextCommentStart)) {
+                    if(c == '\n') commentSb.append('\n')
+                    else commentSb.append(' ')
+                }
+                sb.append(commentSb.toString())
+                sb.append(commentRepl)
             }
             thisCommentEnd = nextCommentStart + comment.length
             inComment = !inComment

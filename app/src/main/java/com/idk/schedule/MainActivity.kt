@@ -384,7 +384,7 @@ class MainActivity : AppCompatActivity() {
 
                 
                 fun TableRow.addWrapLesson(lessonIndex: Int, colorRes: Int = R.color.white) {
-                    val view = if(lessonIndex == 0)
+                    val view = if(lessonIndex <= 0)
                         FrameLayout(this@MainActivity).apply { addView(View(this@MainActivity)) }
                     else {
                         val lesson = curDay.lessonsUsed[lessonIndex - 1]
@@ -432,7 +432,6 @@ class MainActivity : AppCompatActivity() {
                             ViewGroup.LayoutParams.MATCH_PARENT
                         ).apply {
                             weight = 1.0f
-                            gravity = Gravity.FILL_VERTICAL
                         },
                         colorRes
                     )
@@ -452,8 +451,12 @@ class MainActivity : AppCompatActivity() {
                                     TableRow(this@MainActivity).apply {
                                         addWrapLesson(lessonAt(false, false))
                                     },
-                                    TableLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT).apply {
-                                        weight = 1.0f
+                                    TableLayout.LayoutParams(
+                                        ViewGroup.LayoutParams.MATCH_PARENT,
+                                        ViewGroup.LayoutParams.MATCH_PARENT
+                                    ).apply {
+                                        weight = 1.0f //very important!
+                                        //match parent for height is not enough, thx Android
                                     }
                                 )
                             }
@@ -463,18 +466,20 @@ class MainActivity : AppCompatActivity() {
                                         addWrapLesson(lessonAt(group = false, week = false))
                                         addWrapLesson(lessonAt(group = true, week = false))
                                     },
-                                    TableLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT).apply {
-                                        weight = 1.0f
-                                    }
+                                    TableLayout.LayoutParams(
+                                        ViewGroup.LayoutParams.MATCH_PARENT,
+                                        ViewGroup.LayoutParams.MATCH_PARENT
+                                    )
                                 )
                                 addView(
                                     TableRow(this@MainActivity).apply {
                                         addWrapLesson(lessonAt(group = false, week = true), R.color.yellow)
                                         addWrapLesson(lessonAt(group = true, week = true), R.color.yellow)
                                     },
-                                    TableLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT).apply {
-                                        weight = 1.0f
-                                    }
+                                    TableLayout.LayoutParams(
+                                        ViewGroup.LayoutParams.MATCH_PARENT,
+                                        ViewGroup.LayoutParams.MATCH_PARENT
+                                    )
                                 )
                             }
                             groupHorizontal -> {
@@ -482,17 +487,19 @@ class MainActivity : AppCompatActivity() {
                                     TableRow(this@MainActivity).apply {
                                         addWrapLesson(lessonAt(false, week = false))
                                     },
-                                    TableLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT).apply {
-                                        weight = 1.0f
-                                    }
+                                    TableLayout.LayoutParams(
+                                        ViewGroup.LayoutParams.MATCH_PARENT,
+                                        ViewGroup.LayoutParams.MATCH_PARENT
+                                    )
                                 )
                                 addView(
                                     TableRow(this@MainActivity).apply {
                                         addWrapLesson(lessonAt(false, week = true), R.color.yellow)
                                     },
-                                    TableLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT).apply {
-                                        weight = 1.0f
-                                    }
+                                    TableLayout.LayoutParams(
+                                        ViewGroup.LayoutParams.MATCH_PARENT,
+                                        ViewGroup.LayoutParams.MATCH_PARENT
+                                    )
                                 )
                             }
                             groupVertical -> {
@@ -501,8 +508,12 @@ class MainActivity : AppCompatActivity() {
                                         addWrapLesson(lessonAt(group = false, false))
                                         addWrapLesson(lessonAt(group = true, false))
                                     },
-                                    TableLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT).apply {
-                                        weight = 1.0f
+                                    TableLayout.LayoutParams(
+                                        ViewGroup.LayoutParams.MATCH_PARENT,
+                                        ViewGroup.LayoutParams.MATCH_PARENT
+                                    ).apply {
+                                        weight = 1.0f //very important!
+                                        //match parent for height is not enough, thx Android
                                     }
                                 )
                             }
@@ -591,7 +602,7 @@ class MainActivity : AppCompatActivity() {
             val lessonIndex = currentLessonIndices[i]
             val lessonMinutes = currentDay.time[i]
 
-            val curLesson = if(lessonIndex == 0) null else currentDay.lessonsUsed[lessonIndex - 1]
+            val curLesson = if(lessonIndex <= 0) null else currentDay.lessonsUsed[lessonIndex - 1]
             if(curLesson != null || prevElNotBrake()) dayElements.add(DayElement(curLesson, lessonMinutes))
             else {
                 val lastElement = dayElements[dayElements.lastIndex]
@@ -759,7 +770,7 @@ class MainActivity : AppCompatActivity() {
                     updateScheduleWeekDisplay()
                 } catch (e: Exception) {
                     AlertDialog.Builder(this)
-                        .setMessage(e.toString())
+                        .setMessage(e.stackTraceToString())
                         .setPositiveButton(android.R.string.ok) { dialog, which -> dialog.dismiss() }
                         .show();
                     val toast = Toast.makeText(
