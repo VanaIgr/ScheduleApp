@@ -2,8 +2,10 @@ package com.idk.schedule
 
 import android.annotation.SuppressLint
 import android.app.Activity
+import android.app.AlertDialog
 import android.content.BroadcastReceiver
 import android.content.Context
+import android.content.DialogInterface
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.res.ColorStateList
@@ -756,6 +758,10 @@ class MainActivity : AppCompatActivity() {
                     updateScheduleWeekDisplay()
                     updateScheduleWeekDisplay()
                 } catch (e: Exception) {
+                    AlertDialog.Builder(this)
+                        .setMessage(e.toString())
+                        .setPositiveButton(android.R.string.ok) { dialog, which -> dialog.dismiss() }
+                        .show();
                     val toast = Toast.makeText(
                         applicationContext,
                         "Error parsing schedule from file",
