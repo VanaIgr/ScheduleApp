@@ -1,14 +1,12 @@
 package com.idk.schedule
 
-import android.util.Log
-import java.lang.IllegalStateException
 import java.lang.IndexOutOfBoundsException
 import java.lang.RuntimeException
-import java.lang.StringBuilder
-import java.util.*
+import java.util.function.Supplier
 import kotlin.collections.ArrayList
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.text.StringBuilder
 
 fun Boolean.toInt(): Int = if(this) 1 else 0
 
@@ -77,24 +75,26 @@ fun StringView.toInt(): Int {
             )
         }
 
-        val (lineIndex, charIndex) = run {
-            var lineIndex = 0
-            var charIndex = 0
-
-            for(i in 0 until begin) {
-                if(source[i] == '\n') {
-                    charIndex = 0
-                    lineIndex++
-                }
-                else charIndex++
-            }
-
-            lineIndex to charIndex
-        }
+        val (lineIndex, charIndex) = countPos(source, begin)
 
         throw RuntimeException("Error parsing int in [$begin;$end> at line $lineIndex, " +
                 "position $charIndex: ...${expString.first}`${expString.second}`${expString.third}...", e)
     }
+}
+
+internal fun countPos(source: String, pos: Int): Pair<Int, Int> {
+    var lineIndex = 1
+    var charIndex = 0
+
+    for(i in 0 until pos) {
+        if(source[i] == '\n') {
+            charIndex = 0
+            lineIndex++
+        }
+        else charIndex++
+    }
+
+    return lineIndex to charIndex
 }
 
 internal fun StringView.parseRawString(): StringView {
@@ -208,26 +208,56 @@ internal fun StringView.parseWeeks(): Pair<StringView, Weeks> {
 
 data class Schedule(val weeksDescription: Weeks, val week: Week)
 
+
+class Sos(private val str: String) : CharSequence {
+    override val length: Int = str.length
+
+    override fun get(index: Int): Char {
+        return str.get(index)
+    }
+
+    override fun subSequence(startIndex: Int, endIndex: Int): CharSequence {
+        return str.subSequence(startIndex, endIndex)
+    }
+
+}
+
 fun parseSchedule(input_: String): Schedule {
-    val input = if(Character.isDigit(input_.first { !Character.isSpaceChar(it) }))
+    val input = if(Character.isDigit(input_[0]) || Character.isSpaceChar(input_[0]))
         input_
     else run {
-        val firstSpace = input_.indexOfFirst { it == ' ' }
+        val firstSpace = input_.indexOfFirst { Character.isSpaceChar(it) }
         if(firstSpace == -1) throw RuntimeException("No comment symbol defined")
         val comment = input_.substring(0, firstSpace)
+        val newlinesInComment = comment.count { it == '\n' }
 
         var inComment = true
         var thisCommentEnd = firstSpace
         val sb = StringBuilder()
+
+        for(i in 0 until newlinesInComment) sb.append('\n')
+
         while (true) {
-            val nextCommentStart = input_.indexOf(comment, thisCommentEnd)
+            val nextCommentStart = Sos(input_).indexOf(comment, thisCommentEnd)
             if (!inComment) {
                 val end = if (nextCommentStart == -1) input_.length else nextCommentStart
                 sb.append(input_.substring(thisCommentEnd, end))
+                for(i in 0 until newlinesInComment) sb.append('\n')
                 if (nextCommentStart == -1) break
             }
             else {
-                if (nextCommentStart == -1) throw RuntimeException("Comment block must be closed before EOF")
+                val (line, char) = countPos(input_, thisCommentEnd)
+                if (nextCommentStart == -1) {
+                    throw RuntimeException(
+                        "Comment block `$comment` at $line:$char must be closed before EOF"
+                    )
+                }
+
+
+                val newlinesInThisComment = input_.substring(thisCommentEnd, nextCommentStart)
+                    .count{ it == '\n' }
+                for(i in 0 until newlinesInThisComment) sb.append('\n')
+                for(i in 0 until newlinesInComment) sb.append('\n')
             }
             thisCommentEnd = nextCommentStart + comment.length
             inComment = !inComment
