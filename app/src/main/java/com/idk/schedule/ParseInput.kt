@@ -296,11 +296,11 @@ fun parseSchedule(input_: String): Schedule {
         val weeks = pair.second
 
         return Schedule(
-                weeks,
-                week.toTypedArray()
+            weeks,
+            week.toTypedArray()
         )
     }
-    else if(version == 1) {
+    else if(version == 2) {
         val lessonsCountS = StringView(input, begin, input.length).parseNextValue()
         begin = lessonsCountS.end + 1
         val lessonsCount = lessonsCountS.toInt()
@@ -350,8 +350,8 @@ fun parseSchedule(input_: String): Schedule {
         begin = pair.first.end + 1
         val weeks = pair.second
 
-        fun getDayUsed(index: Int) = if(index == 0) Day.emptyDay
-        else dayUsed[index-1]
+        fun getDayUsed(index: Int) = if(index == -1) Day.emptyDay
+        else dayUsed[index]
 
         return Schedule(
             weeks,

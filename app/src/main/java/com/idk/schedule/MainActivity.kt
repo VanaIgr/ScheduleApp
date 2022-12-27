@@ -9,6 +9,8 @@ import android.content.DialogInterface
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.res.ColorStateList
+import android.graphics.Bitmap
+import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.drawable.ColorDrawable
 import android.graphics.drawable.RippleDrawable
@@ -19,14 +21,15 @@ import android.text.Layout
 import android.util.Log
 import android.util.TypedValue
 import android.view.*
+import android.view.View.MeasureSpec
 import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.AppCompatTextView
 import androidx.appcompat.widget.SwitchCompat
 import androidx.cardview.widget.CardView
 import androidx.core.view.*
-import androidx.viewpager.widget.ViewPager.OnPageChangeListener
 import androidx.viewpager2.widget.ViewPager2
+import com.github.rongi.rotate_layout.layout.RotateLayout
 import java.util.*
 import java.util.concurrent.TimeUnit
 import kotlin.collections.ArrayList
@@ -203,6 +206,7 @@ class MainActivity : AppCompatActivity() {
 
         val lessonsView = findViewById<ViewGroup>(R.id.lessonsView)
         val calendarView = findViewById<ViewGroup>(R.id.calendarView)
+        val genImageView = findViewById<ViewGroup>(R.id.genImageView)
 
         currentEndTV = findViewById(R.id.currentEnd)
         nextEndTV = findViewById(R.id.nextEnd)
@@ -210,6 +214,7 @@ class MainActivity : AppCompatActivity() {
         run {
             val toLessonsView = findViewById<ImageView>(R.id.selectDayView)
             val toCalendarView = findViewById<ImageView>(R.id.selectWeekView)
+            //val toGenImageView = findViewById<ImageView>(R.id.selectGenImageView)
 
             toLessonsView.setOnClickListener {
                 toLessonsView.setColorFilter(
@@ -217,8 +222,10 @@ class MainActivity : AppCompatActivity() {
                     android.graphics.PorterDuff.Mode.SRC_IN
                 )
                 toCalendarView.clearColorFilter()
+                //toGenImageView.clearColorFilter()
                 lessonsView.visibility = View.VISIBLE
                 calendarView.visibility = View.GONE
+                genImageView.visibility = View.GONE
             }
             toCalendarView.setOnClickListener {
                 toCalendarView.setColorFilter(
@@ -226,9 +233,22 @@ class MainActivity : AppCompatActivity() {
                     android.graphics.PorterDuff.Mode.SRC_IN
                 )
                 toLessonsView.clearColorFilter()
+                //toGenImageView.clearColorFilter()
                 calendarView.visibility = View.VISIBLE
                 lessonsView.visibility = View.GONE
+                genImageView.visibility = View.GONE
             }
+            //toGenImageView.setOnClickListener {
+            //    toGenImageView.setColorFilter(
+            //        resources.getColor(R.color.purple_500),
+            //        android.graphics.PorterDuff.Mode.SRC_IN
+            //    )
+            //    toCalendarView.clearColorFilter()
+            //    toLessonsView.clearColorFilter()
+            //    genImageView.visibility = View.VISIBLE
+            //    calendarView.visibility = View.GONE
+            //    lessonsView.visibility = View.GONE
+            //}
 
             toLessonsView.callOnClick()
         }
@@ -276,26 +296,143 @@ class MainActivity : AppCompatActivity() {
         })
 
         updateScheduleWeekDisplay()
+
+        genImageView.findViewById<Button>(R.id.updateGenImageB).setOnClickListener {
+            try {
+                val layoutT = genImageView.findViewById<EditText>(R.id.daysLayoutET).text
+                val layout = run {
+                    val layout0 = ArrayList<ArrayList<Int>>()
+                    layout0.add(ArrayList())
+                    var start = 0
+                    for (i in layoutT.indices) {
+                        if (layoutT[i] == ',') {
+                            val index = layoutT.substring(start, i).trim().toInt()-1
+                            layout0[layout0.lastIndex].add(index)
+                            start = i+1
+                        }
+                        else if(layoutT[i] == '\n') {
+                            layout0.add(ArrayList())
+                        }
+                    }
+
+                    if(start != layoutT.length) throw RuntimeException(
+                        "Ошибка, `,` должна быть последним символом"
+                    )
+
+                    layout0 as List<List<Int>>
+                }
+
+                val width0 = findViewById<EditText>(R.id.bitmapWidthET).text.toString().toIntOrNull()
+                if(width0 == null || width0 <= 0) throw RuntimeException("Ширина не может быть <= 0")
+
+                val tl = TableLayout(this).also { tl ->
+                    //isStretchAllColumns = true
+                    tl.setBackgroundColor(resources.getColor(R.color.light_gray))
+
+                    tl.setPaddingRelative(
+                        dipToPx(2.0f).toInt(),
+                        dipToPx(2.0f).toInt(),
+                        0,
+                        0
+                    )
+
+                    for(row in layout) {
+                        val days = TableRow(this@MainActivity)
+                        tl.addView(
+                            days,
+                            TableLayout.LayoutParams(
+                                ViewGroup.LayoutParams.WRAP_CONTENT,
+                                ViewGroup.LayoutParams.WRAP_CONTENT,
+                            ).apply {
+                                gravity = Gravity.FILL_VERTICAL
+                            }
+                        )
+
+                        for(dayIndex in row) {
+                            val day = TableLayout(this@MainActivity)
+
+                            days.addElement(
+                                FrameLayout(this@MainActivity).apply {
+                                    addView(
+                                        VerticalTextView(this@MainActivity).apply {
+                                            text = dayNames[dayIndex]
+                                            textAlignment = TextView.TEXT_ALIGNMENT_CENTER
+                                            setTextColor(resources.getColor(R.color.black))
+                                            textSize = spToPx(12.0f)
+                                        },
+                                        FrameLayout.LayoutParams(
+                                            ViewGroup.LayoutParams.WRAP_CONTENT,
+                                            ViewGroup.LayoutParams.MATCH_PARENT
+                                        ).apply {
+                                            gravity = Gravity.CENTER
+                                        }
+                                    )
+                                },
+                                TableRow.LayoutParams(
+                                    ViewGroup.LayoutParams.WRAP_CONTENT,
+                                    ViewGroup.LayoutParams.MATCH_PARENT
+                                )
+                            )
+
+                            addDayDisplay(day, dayIndex)
+
+                            day.setBackgroundColor(0xffff00ffL.toInt())
+                            day.gravity = Gravity.FILL_VERTICAL
+
+                            days.addView(
+                                day,
+                                TableRow.LayoutParams(
+                                    ViewGroup.LayoutParams.WRAP_CONTENT,
+                                    ViewGroup.LayoutParams.MATCH_PARENT
+                                ).apply {
+                                    this.weight = 1.0f
+                                }
+                            )
+
+                            day.gravity = Gravity.FILL_VERTICAL
+                            days.gravity = Gravity.FILL_VERTICAL
+                        }
+                    }
+                }
+
+                tl.measure(
+                    MeasureSpec.makeMeasureSpec(width0, MeasureSpec.EXACTLY),
+                    MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED),
+                )
+                tl.layout(0, 0, tl.measuredWidth, tl.measuredHeight)
+
+                val iv = findViewById<Image_View>(R.id.image_view)
+
+                iv.bitmap?.recycle()
+                val bmp = Bitmap.createBitmap(
+                    tl.measuredWidth, tl.measuredHeight, Bitmap.Config.ARGB_8888
+                )
+
+                tl.draw(Canvas(bmp))
+
+                iv.bitmap = bmp
+                iv.layoutParams = LinearLayout.LayoutParams(tl.measuredWidth, tl.measuredHeight)
+                iv.invalidate()
+            }
+            catch (e: Throwable) {
+                AlertDialog.Builder(this)
+                    .setMessage(e.stackTraceToString())
+                    .setPositiveButton(android.R.string.ok) { dialog, which -> dialog.dismiss() }
+                    .show();
+                val toast = Toast.makeText(
+                    applicationContext,
+                    "Error generating image",
+                    Toast.LENGTH_LONG
+                )
+                Log.e("ERROR", "", e)
+                toast.show()
+            }
+        }
     }
 
     private fun updateScheduleWeekDisplay() {
         val week = findViewById<LinearLayout>(R.id.week)
         week.removeAllViews()
-
-        fun TableRow.addElement(view: View, params: TableRow.LayoutParams, colorRes: Int = R.color.white) {
-            this.addView(
-                view.apply {
-                    setPadding(dipToPx(5.0f).toInt())
-                    setBackgroundColor(resources.getColor(colorRes))
-                },
-                params.apply {
-                    bottomMargin = dipToPx(2.0f).toInt()
-                    marginEnd = dipToPx(2.0f).toInt()
-                }
-            )
-        }
-
-        val dayNames = arrayOf("Понедельник", "Вторник", "Среда", "Четверг", "Пятница", "Суббота", "Воскресенье")
 
         for(dayIndex in 0 until 7) {
             val day = TableLayout(this)
@@ -335,199 +472,216 @@ class MainActivity : AppCompatActivity() {
                 )
             })
 
-            val curDay = schedule.week[dayIndex]
+            addDayDisplay(day, dayIndex)
+        }
+    }
 
-            val lessonIndicesRange = run {
-                val range0 = curDay.lessons[0].calculateNozeropaddingRange()
-                val range1 = curDay.lessons[1].calculateNozeropaddingRange()
-                val range2 = curDay.lessons[2].calculateNozeropaddingRange()
-                val range3 = curDay.lessons[3].calculateNozeropaddingRange()
+    private fun addDayDisplay(day: TableLayout, dayIndex: Int) {
+        val curDay = schedule.week[dayIndex]
 
-                return@run IntRange(
-                    range0.first min range1.first min range2.first min range3.first,
-                    range0.last max range1.last max range2.last max range3.last,
+        val lessonIndicesRange = run {
+            val range0 = curDay.lessons[0].calculateNozeropaddingRange()
+            val range1 = curDay.lessons[1].calculateNozeropaddingRange()
+            val range2 = curDay.lessons[2].calculateNozeropaddingRange()
+            val range3 = curDay.lessons[3].calculateNozeropaddingRange()
+
+            return@run IntRange(
+                range0.first min range1.first min range2.first min range3.first,
+                range0.last max range1.last max range2.last max range3.last,
+            )
+        }
+
+        for(i in lessonIndicesRange) {
+            val time = curDay.time[i]
+            fun lessonAt(group: Boolean, week: Boolean) =
+                curDay.getForGroupAndWeek(group, week).let {
+                    if (i in it.indices) it[i] else 0
+                }
+
+            val row = TableRow(this)
+            day.addView(
+                row,
+                TableLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                ).apply {
+                    this.weight = 1.0f
+                }
+            )
+
+            row.addElement(
+                FrameLayout(this).apply {
+                    addView(
+                        TextView(this@MainActivity).apply {
+                            text = minuteOfDayToString(time.first) + "\n-\n" + minuteOfDayToString(time.last)
+                            textAlignment = TextView.TEXT_ALIGNMENT_CENTER
+                            setTextColor(resources.getColor(R.color.black))
+                            textSize = spToPx(10.0f)
+                            gravity = Gravity.CENTER_VERTICAL
+                        },
+                        FrameLayout.LayoutParams(
+                            ViewGroup.LayoutParams.WRAP_CONTENT,
+                            ViewGroup.LayoutParams.MATCH_PARENT
+                        )
+                    )
+                },
+                TableRow.LayoutParams(
+                    ViewGroup.LayoutParams.WRAP_CONTENT,
+                    ViewGroup.LayoutParams.MATCH_PARENT
                 )
-            }
+            )
 
-            //for((i, time) in curDay.time.withIndex()) {
-            for(i in lessonIndicesRange) {
-                val time = curDay.time[i]
-                fun lessonAt(group: Boolean, week: Boolean) =
-                    curDay.getForGroupAndWeek(group, week).let {
-                        if (i in it.indices) it[i] else 0
-                    }
 
-                val row = TableRow(this)
-                day.addView(row)
-
-                row.addElement(
-                    FrameLayout(this).apply {
+            fun TableRow.addWrapLesson(lessonIndex: Int, colorRes: Int = R.color.white) {
+                val view = if(lessonIndex <= 0)
+                    FrameLayout(this@MainActivity).apply { addView(View(this@MainActivity)) }
+                else {
+                    val lesson = curDay.lessonsUsed[lessonIndex - 1]
+                    FrameLayout(this@MainActivity).apply {
                         addView(
-                            TextView(this@MainActivity).apply {
-                                text = minuteOfDayToString(time.first) + "\n-\n" + minuteOfDayToString(time.last)
-                                textAlignment = TextView.TEXT_ALIGNMENT_CENTER
+                            AppCompatTextView(this@MainActivity).apply {
+                                val noBreakSpace = '\u00A0'
+                                val textSB = StringBuilder()
+                                textSB.append(lesson.name)
+                                fun addOther(text: String) {
+                                    if (text.isEmpty()) return
+                                    textSB.append(' ')
+                                    val newText = if (text.length < 20) text.replace(' ', noBreakSpace)
+                                    else text
+                                    textSB.append(newText)
+                                }
+                                addOther(lesson.type)
+                                addOther(lesson.loc)
+                                addOther(lesson.extra)
+
+                                this.text = textSB.toString()
                                 setTextColor(resources.getColor(R.color.black))
+                                textAlignment = TextView.TEXT_ALIGNMENT_CENTER
+                                isSingleLine = false
+                                gravity = Gravity.CENTER
                                 textSize = spToPx(10.0f)
-                                gravity = Gravity.CENTER_VERTICAL
+                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                                    @SuppressLint("WrongConstant") // it's declared as the corresponding constant in LineBreaker (API level 29)
+                                    breakStrategy = Layout.BREAK_STRATEGY_BALANCED
+                                }
                             },
                             FrameLayout.LayoutParams(
                                 ViewGroup.LayoutParams.WRAP_CONTENT,
                                 ViewGroup.LayoutParams.MATCH_PARENT
-                            )
+                            ).apply {
+                                gravity = Gravity.CENTER
+                            }
                         )
-                    },
+                    }
+                }
+                addElement(
+                    view,
                     TableRow.LayoutParams(
-                        ViewGroup.LayoutParams.WRAP_CONTENT,
+                        0,
                         ViewGroup.LayoutParams.MATCH_PARENT
-                    )
+                    ).apply {
+                        weight = 1.0f
+                    },
+                    colorRes
                 )
+            }
 
-                
-                fun TableRow.addWrapLesson(lessonIndex: Int, colorRes: Int = R.color.white) {
-                    val view = if(lessonIndex <= 0)
-                        FrameLayout(this@MainActivity).apply { addView(View(this@MainActivity)) }
-                    else {
-                        val lesson = curDay.lessonsUsed[lessonIndex - 1]
-                        FrameLayout(this@MainActivity).apply {
+            val groupHorizontal = lessonAt(group = false, false) == lessonAt(group = true, false) &&
+                lessonAt(group = false, true) == lessonAt(group = true, true)
+            val groupVertical = lessonAt(false, week = false) == lessonAt(false, week = true) &&
+                lessonAt(true, week = false) == lessonAt(true, week = true)
+
+            row.addView(
+                TableLayout(this).apply {
+                    isStretchAllColumns = true
+                    when {
+                        groupHorizontal && groupVertical -> {
                             addView(
-                                AppCompatTextView(this@MainActivity).apply {
-                                    val noBreakSpace = '\u00A0'
-                                    val textSB = StringBuilder()
-                                    textSB.append(lesson.name)
-                                    fun addOther(text: String) {
-                                        if (text.isEmpty()) return
-                                        textSB.append(' ')
-                                        val newText = if (text.length < 20) text.replace(' ', noBreakSpace)
-                                        else text
-                                        textSB.append(newText)
-                                    }
-                                    addOther(lesson.type)
-                                    addOther(lesson.loc)
-                                    addOther(lesson.extra)
-
-                                    this.text = textSB.toString()
-                                    setTextColor(resources.getColor(R.color.black))
-                                    textAlignment = TextView.TEXT_ALIGNMENT_CENTER
-                                    isSingleLine = false
-                                    gravity = Gravity.CENTER
-                                    textSize = spToPx(10.0f)
-                                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                                        @SuppressLint("WrongConstant") // it's declared as the corresponding constant in LineBreaker (API level 29)
-                                        breakStrategy = Layout.BREAK_STRATEGY_BALANCED
-                                    }
+                                TableRow(this@MainActivity).apply {
+                                    addWrapLesson(lessonAt(false, false))
                                 },
-                                FrameLayout.LayoutParams(
-                                    ViewGroup.LayoutParams.WRAP_CONTENT,
+                                TableLayout.LayoutParams(
+                                    ViewGroup.LayoutParams.MATCH_PARENT,
                                     ViewGroup.LayoutParams.MATCH_PARENT
                                 ).apply {
-                                    gravity = Gravity.CENTER
+                                    weight = 1.0f //very important!
+                                    //match parent for height is not enough, thx Android
+                                }
+                            )
+                        }
+                        !groupHorizontal && !groupVertical -> {
+                            addView(
+                                TableRow(this@MainActivity).apply {
+                                    addWrapLesson(lessonAt(group = false, week = false))
+                                    addWrapLesson(lessonAt(group = true, week = false))
+                                },
+                                TableLayout.LayoutParams(
+                                    ViewGroup.LayoutParams.MATCH_PARENT,
+                                    ViewGroup.LayoutParams.MATCH_PARENT
+                                )
+                            )
+                            addView(
+                                TableRow(this@MainActivity).apply {
+                                    addWrapLesson(lessonAt(group = false, week = true), R.color.yellow)
+                                    addWrapLesson(lessonAt(group = true, week = true), R.color.yellow)
+                                },
+                                TableLayout.LayoutParams(
+                                    ViewGroup.LayoutParams.MATCH_PARENT,
+                                    ViewGroup.LayoutParams.MATCH_PARENT
+                                ).apply {
+                                    weight = 1.0f //very important!
+                                    //match parent for height is not enough, thx Android
+                                }
+                            )
+                        }
+                        groupHorizontal -> {
+                            addView(
+                                TableRow(this@MainActivity).apply {
+                                    addWrapLesson(lessonAt(false, week = false))
+                                },
+                                TableLayout.LayoutParams(
+                                    ViewGroup.LayoutParams.MATCH_PARENT,
+                                    ViewGroup.LayoutParams.MATCH_PARENT
+                                )
+                            )
+                            addView(
+                                TableRow(this@MainActivity).apply {
+                                    addWrapLesson(lessonAt(false, week = true), R.color.yellow)
+                                },
+                                TableLayout.LayoutParams(
+                                    ViewGroup.LayoutParams.MATCH_PARENT,
+                                    ViewGroup.LayoutParams.MATCH_PARENT
+                                ).apply {
+                                    weight = 1.0f //very important!
+                                    //match parent for height is not enough, thx Android
+                                }
+                            )
+                        }
+                        groupVertical -> {
+                            addView(
+                                TableRow(this@MainActivity).apply {
+                                    addWrapLesson(lessonAt(group = false, false))
+                                    addWrapLesson(lessonAt(group = true, false))
+                                },
+                                TableLayout.LayoutParams(
+                                    ViewGroup.LayoutParams.MATCH_PARENT,
+                                    ViewGroup.LayoutParams.MATCH_PARENT
+                                ).apply {
+                                    weight = 1.0f //very important!
+                                    //match parent for height is not enough, thx Android
                                 }
                             )
                         }
                     }
-                    addElement(
-                        view,
-                        TableRow.LayoutParams(
-                            0,
-                            ViewGroup.LayoutParams.MATCH_PARENT
-                        ).apply {
-                            weight = 1.0f
-                        },
-                        colorRes
-                    )
+                },
+                TableRow.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.MATCH_PARENT
+                ).apply {
+                    weight = 1.0f
+                    setMargins(0, 0, 0, 0)
                 }
-
-                val groupHorizontal = lessonAt(group = false, false) == lessonAt(group = true, false) &&
-                                      lessonAt(group = false, true) == lessonAt(group = true, true)
-                val groupVertical = lessonAt(false, week = false) == lessonAt(false, week = true) &&
-                                     lessonAt(true, week = false) == lessonAt(true, week = true)
-
-                row.addView(
-                    TableLayout(this).apply {
-                        isStretchAllColumns = true
-                        when {
-                            groupHorizontal && groupVertical -> {
-                                addView(
-                                    TableRow(this@MainActivity).apply {
-                                        addWrapLesson(lessonAt(false, false))
-                                    },
-                                    TableLayout.LayoutParams(
-                                        ViewGroup.LayoutParams.MATCH_PARENT,
-                                        ViewGroup.LayoutParams.MATCH_PARENT
-                                    ).apply {
-                                        weight = 1.0f //very important!
-                                        //match parent for height is not enough, thx Android
-                                    }
-                                )
-                            }
-                            !groupHorizontal && !groupVertical -> {
-                                addView(
-                                    TableRow(this@MainActivity).apply {
-                                        addWrapLesson(lessonAt(group = false, week = false))
-                                        addWrapLesson(lessonAt(group = true, week = false))
-                                    },
-                                    TableLayout.LayoutParams(
-                                        ViewGroup.LayoutParams.MATCH_PARENT,
-                                        ViewGroup.LayoutParams.MATCH_PARENT
-                                    )
-                                )
-                                addView(
-                                    TableRow(this@MainActivity).apply {
-                                        addWrapLesson(lessonAt(group = false, week = true), R.color.yellow)
-                                        addWrapLesson(lessonAt(group = true, week = true), R.color.yellow)
-                                    },
-                                    TableLayout.LayoutParams(
-                                        ViewGroup.LayoutParams.MATCH_PARENT,
-                                        ViewGroup.LayoutParams.MATCH_PARENT
-                                    )
-                                )
-                            }
-                            groupHorizontal -> {
-                                addView(
-                                    TableRow(this@MainActivity).apply {
-                                        addWrapLesson(lessonAt(false, week = false))
-                                    },
-                                    TableLayout.LayoutParams(
-                                        ViewGroup.LayoutParams.MATCH_PARENT,
-                                        ViewGroup.LayoutParams.MATCH_PARENT
-                                    )
-                                )
-                                addView(
-                                    TableRow(this@MainActivity).apply {
-                                        addWrapLesson(lessonAt(false, week = true), R.color.yellow)
-                                    },
-                                    TableLayout.LayoutParams(
-                                        ViewGroup.LayoutParams.MATCH_PARENT,
-                                        ViewGroup.LayoutParams.MATCH_PARENT
-                                    )
-                                )
-                            }
-                            groupVertical -> {
-                                addView(
-                                    TableRow(this@MainActivity).apply {
-                                        addWrapLesson(lessonAt(group = false, false))
-                                        addWrapLesson(lessonAt(group = true, false))
-                                    },
-                                    TableLayout.LayoutParams(
-                                        ViewGroup.LayoutParams.MATCH_PARENT,
-                                        ViewGroup.LayoutParams.MATCH_PARENT
-                                    ).apply {
-                                        weight = 1.0f //very important!
-                                        //match parent for height is not enough, thx Android
-                                    }
-                                )
-                            }
-                        }
-                    },
-                    TableRow.LayoutParams(
-                        ViewGroup.LayoutParams.MATCH_PARENT,
-                        ViewGroup.LayoutParams.MATCH_PARENT
-                    ).apply {
-                        weight = 1.0f
-                        setMargins(0, 0, 0, 0)
-                    }
-                )
-            }
+            )
         }
     }
 
@@ -791,7 +945,23 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+
+    fun TableRow.addElement(view: View, params: TableRow.LayoutParams, colorRes: Int = R.color.white) {
+        this.addView(
+            view.apply {
+                setPadding(dipToPx(5.0f).toInt())
+                setBackgroundColor(resources.getColor(colorRes))
+            },
+            params.apply {
+                bottomMargin = dipToPx(2.0f).toInt()
+                marginEnd = dipToPx(2.0f).toInt()
+            }
+        )
+    }
+
     private companion object {
+        val dayNames = arrayOf("Понедельник", "Вторник", "Среда", "Четверг", "Пятница", "Суббота", "Воскресенье")
+
         fun Calendar.copyToMinute() = (clone() as Calendar).apply {
             clear()
             set(Calendar.YEAR, get(Calendar.YEAR))
